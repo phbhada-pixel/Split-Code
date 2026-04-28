@@ -1,5 +1,5 @@
 // 🌟 Configuration 🌟
-const GAS_URL = "https://script.google.com/macros/s/AKfycbynqi8xrHlif5PxyRZklUf61kFB4MC6He7ptaEn8sPrA54biz-ToijER10utNP7mF68/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycby8KKGd-KtbiRW-jqob4UNvFo-nBdx5uKt8mwN5WbSKySgSACvR3mXZXPA3aisYR-PE/exec";
 
 const CONFIG = {
     hiddenColumns: ["तारीख", "मोबाईल क्र.", "उपकेंद्र", "महिना", "वर्ष", "मूळ डेटा (JSON)", "कर्मचाऱ्याचे नाव"]
