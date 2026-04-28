@@ -50,44 +50,52 @@ function generatePendingReport() {
             html += `<div class="pdf-group-header">📄 फॉर्म: ${fName}</div>`;
             html += `<table class="report-table" style="width:100%; border-collapse:collapse; margin-bottom:30px;">
                 <thead style="background:#f4f7f6;"><tr>
-                <th style="border: 1px solid #ccc; padding: 8px;">अ.क्र.</th>
-                <th style="border: 1px solid #ccc; padding: 8px;">उपकेंद्र</th>
-                <th style="border: 1px solid #ccc; padding: 8px;">कर्मचारी</th>
-                <th style="border: 1px solid #ccc; padding: 8px;">पद</th>
-                <th style="border: 1px solid #ccc; padding: 8px;">गाव</th>
+                <th style="border: 1px solid #ccc; padding: 8px; width:10%; text-align:center;">अ.क्र.</th>
+                <th style="border: 1px solid #ccc; padding: 8px; text-align:left;">थकबाकीदार कर्मचारी (उपकेंद्र) - अपूर्ण गावे</th>
                 </tr></thead><tbody>`;
             
-            groupedData[fName].sort((a,b) => {
-                if(a.sc !== b.sc) return a.sc.localeCompare(b.sc);
-                return a.village.localeCompare(b.village);
+            // 🟢 Group Villages by Employee and Subcenter
+            let empMap = {};
+            groupedData[fName].forEach(p => {
+                let key = p.name + "###" + p.sc;
+                if(!empMap[key]) empMap[key] = [];
+                empMap[key].push(p.village);
             });
 
-            groupedData[fName].forEach((p, idx) => {
+            let idx = 1;
+            let sortedKeys = Object.keys(empMap).sort(); // Sort Alphabetically
+            
+            sortedKeys.forEach(key => {
+                let [empName, scName] = key.split("###");
+                let villagesStr = empMap[key].join(", ");
+
                 html += `<tr>
-                    <td style="border: 1px solid #ccc; padding: 8px;">${idx + 1}</td>
-                    <td style="border: 1px solid #ccc; padding: 8px;">${p.sc}</td>
-                    <td style="border: 1px solid #ccc; padding: 8px;">${p.name}</td>
-                    <td style="border: 1px solid #ccc; padding: 8px;">${p.role}</td>
-                    <td style="border: 1px solid #ccc; padding: 8px; font-weight:bold;">${p.village}</td>
+                    <td style="border: 1px solid #ccc; padding: 8px; text-align:center; font-weight:bold;">${idx++}</td>
+                    <td style="border: 1px solid #ccc; padding: 8px; text-align:left; font-size:15px;">
+                        <span style="color:#0056b3; font-weight:bold;">${empName}</span> - 
+                        <span style="color:#d35400; font-weight:bold;">${scName}</span> 
+                        <span style="color:#28a745; font-weight:bold;">(${villagesStr})</span>
+                    </td>
                 </tr>`;
             });
+            
             html += `</tbody></table>`;
         }
     }
 
-    if(!hasData) { html = `<h3 style="text-align:center; color:green; padding:30px;">🎉 सर्व अहवाल पूर्ण भरले आहेत!</h3>`; downArea.innerHTML = ""; }
+    if(!hasData) { html = `<h3 style="text-align:center; color:green; padding:30px;">🎉 उत्कृष्ट! सर्व अहवाल पूर्ण भरले आहेत.</h3>`; downArea.innerHTML = ""; }
     container.innerHTML = html + `</div>`;
     document.getElementById('reportContentArea').classList.remove('hidden');
 }
 
-// 🟢 NEW: PDF Download Logic
+// 🟢 PDF Download Logic
 function downloadPendingPDF() {
     const element = document.getElementById('pdfExportArea');
     const selMonth = document.getElementById('reportMonth').value;
     const selYear = document.getElementById('reportYear').value;
     const opt = {
         margin: 10,
-        filename: `Pending_Report_${selMonth}_${selYear}.pdf`,
+        filename: `अपूर्ण_अहवाल_${selMonth}_${selYear}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
