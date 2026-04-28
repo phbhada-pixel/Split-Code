@@ -382,6 +382,7 @@ function generateBulkTableHTML(f, availableVillages, formPrefix) {
     return `<div class="table-responsive" style="max-height: 65vh; overflow: auto; border: 1px solid #ddd; margin-top:0;"><table class="report-table" style="width:100%; border-collapse: separate; border-spacing: 0;"><thead style="position: sticky; top: 0; z-index: 3;">${headersHtml}</thead><tbody>${rowsHtml}</tbody></table></div>`;
 }
 
+// 🟢 MODIFIED: Added Nil Report Button
 function generateListHTML(f, formPrefix) {
     let fields = extractFieldsFromForm(f);
     let html = `<h3 style="background: #00705a; color: white; padding: 10px; margin: 0;">📌 ${f.FormName} (रुग्ण/लाभार्थी यादी)</h3>`;
@@ -416,7 +417,12 @@ function generateListHTML(f, formPrefix) {
         html += generateSingleListRowDesktop(f, fields, formPrefix, initialRowIdx);
         html += `</tbody></table></div>`;
     }
-    html += `<button type="button" onclick="addListRow('${f.FormID}')" style="margin-top:15px; background:#17a2b8; color:white; font-weight:bold; border:none; padding:12px; border-radius:6px; cursor:pointer; width:100%; font-size:16px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">➕ आणखी एक नोंद/रुग्ण जोडा (Add Row)</button>`;
+    
+    html += `<div style="display:flex; gap:10px; margin-top:15px; flex-wrap:wrap;">`;
+    html += `<button type="button" onclick="addListRow('${f.FormID}')" style="background:#17a2b8; color:white; font-weight:bold; border:none; padding:12px; border-radius:6px; cursor:pointer; flex:1; min-width:200px; font-size:15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">➕ आणखी एक नोंद/रुग्ण जोडा</button>`;
+    html += `<button type="button" onclick="submitNilReport('${f.FormID}')" style="background:#e74c3c; color:white; font-weight:bold; border:none; padding:12px; border-radius:6px; cursor:pointer; flex:1; min-width:200px; font-size:15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">✅ सर्व गावांसाठी 'निरंक (Nil)' सबमिट करा</button>`;
+    html += `</div>`;
+    
     setTimeout(() => updateListRowNumbers(f.FormID), 50);
     return html;
 }
@@ -613,5 +619,94 @@ async function saveDataToServer() {
         setTimeout(() => { statusText.innerText = ""; }, 5000);
     } finally {
         isSaving = false; if(saveBtn) saveBtn.disabled = false;
+    }
+}
+
+// 🟢 NEW: Submit Nil Report Logic
+async function submitNilReport(fId) {
+    if(isSaving) return;
+    const month = document.getElementById('selMonth').value;
+    const year = document.getElementById('selYear').value;
+
+    if (isMonthLocked(month, year)) {
+        alert("⏳ क्षमस्व! मुदत संपली आहे.");
+        return;
+    }
+
+    if(!confirm(`तुम्हाला खात्री आहे का की ${month} ${year} या महिन्यासाठी संपूर्ण उपकेंद्राचा (सर्व गावांचा) अहवाल 'निरंक (Nil)' म्हणून सबमिट करायचा आहे?`)) {
+        return;
+    }
+
+    isSaving = true;
+    if(document.getElementById('mainSaveBtn')) document.getElementById('mainSaveBtn').disabled = true;
+
+    // Get all villages for the user's subcenter
+    let baseVillages = [];
+    masterData.villages.forEach(v => {
+        if(String(v.SubCenterID).trim().toLowerCase() === String(user.subcenter).trim().toLowerCase() || String(v.SubCenterID).trim().toLowerCase() === "all") { 
+            baseVillages.push(v.VillageName); 
+        }
+    });
+
+    let dataToSave = [];
+    baseVillages.forEach(village => {
+        let formData = { "माहिती": "निरंक (Nil Report)" };
+        formData["महिना"] = month;
+        formData["वर्ष"] = year;
+        const entry = { 
+            entryID: Date.now() + Math.random(), 
+            mobileNo: String(user.mobile).trim(), 
+            subCenter: String(user.subcenter).trim(), 
+            village: String(village).trim(), 
+            formID: fId, 
+            formData: formData 
+        };
+        dataToSave.push(entry);
+    });
+
+    if(dataToSave.length === 0) {
+        alert("तुमच्या उपकेंद्रासाठी गावे उपलब्ध नाहीत.");
+        isSaving = false;
+        if(document.getElementById('mainSaveBtn')) document.getElementById('mainSaveBtn').disabled = false;
+        return;
+    }
+
+    const statusText = document.getElementById('syncStatus');
+    statusText.style.color = "orange";
+    statusText.innerText = "☁️ निरंक (Nil) अहवाल थेट गुगल शीटवर सेव्ह होत आहे... कृपया थांबा.";
+
+    try {
+        const r = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({action:"syncData", payload: dataToSave}) });
+        const textResponse = await r.text();
+
+        if(textResponse.trim().startsWith("<")) throw new Error("Google Blocked Request");
+
+        const d = JSON.parse(textResponse);
+        if(d.success) {
+            statusText.style.color = "green";
+            statusText.innerText = "✅ निरंक अहवाल यशस्वीरित्या सेव्ह झाला!";
+            setTimeout(() => { statusText.innerText = ""; }, 4000);
+
+            document.getElementById('netStatus').innerText = "डेटा रिफ्रेश होत आहे...";
+            await fetchData(); 
+            document.getElementById('netStatus').innerText = "Online";
+
+            document.getElementById('selVillage').value = "";
+            document.getElementById('dynamicFormArea').innerHTML = "<p style='color:green; text-align:center; font-weight:bold; font-size:18px; padding:20px; border:2px solid green; border-radius:8px;'>🎉 अभिनंदन! या महिन्यासाठी हा अहवाल 'निरंक (Nil)' म्हणून यशस्वीरित्या सबमिट झाला आहे. आता तुमचे नाव थकबाकीदार यादीत येणार नाही!</p>";
+            if(document.getElementById('mainSaveBtn')) document.getElementById('mainSaveBtn').style.display = 'none';
+            
+            updateVillageDropdown();
+        } else { 
+            throw new Error("Server error"); 
+        }
+    } catch (error) {
+        console.error("Save Error:", error);
+        alert("माहिती जतन करताना तांत्रिक अडचण आली. कृपया इंटरनेट तपासा आणि पुन्हा प्रयत्न करा.");
+        statusText.style.color = "red";
+        statusText.innerText = "⚠️ इंटरनेट एरर! माहिती सेव्ह होऊ शकली नाही.";
+        setTimeout(() => { statusText.innerText = ""; }, 5000);
+    } finally {
+        isSaving = false;
+        if(document.getElementById('mainSaveBtn')) document.getElementById('mainSaveBtn').disabled = false;
     }
 }
