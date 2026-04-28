@@ -1,4 +1,5 @@
 // 🟢 NEW: GROUPED PENDING REPORT & PDF LOGIC
+// 🟢 NEW: GROUPED PENDING REPORT & PDF LOGIC (With Admin Security)
 function generatePendingReport() {
     const selMonth = document.getElementById('reportMonth').value;
     const selYear = document.getElementById('reportYear').value;
@@ -7,7 +8,11 @@ function generatePendingReport() {
     if (selMonth === "सर्व" || selYear === "सर्व") { alert("विशिष्ट 'महिना' आणि 'वर्ष' निवडा!"); return; }
 
     let groupedData = {}; 
-    let filterRole = document.getElementById('reportRoleFilter').value;
+    let filterRole = "सर्व";
+    // ॲडमिन फिल्टर फक्त ॲडमिनसाठीच उपलब्ध असतो
+    if (document.getElementById('reportRoleFilter')) {
+        filterRole = document.getElementById('reportRoleFilter').value;
+    }
 
     let formsToCheck = masterData.forms.filter(f => !isFormInactive(f) && String(f.FormType).trim() !== 'List');
     if(reportFormSelect !== "ALL" && reportFormSelect !== "") {
@@ -20,7 +25,15 @@ function generatePendingReport() {
         groupedData[f.FormName] = [];
 
         masterData.users.forEach(u => {
-            if (filterRole !== "सर्व" && u.role !== filterRole) return;
+            // 🟢 सुरक्षा (Security Check): ॲडमिन नसेल तर फक्त स्वतःचा डेटा दिसेल
+            let isAdmin = (user.role === "Admin" || user.role === "VIEWER" || user.role === "MANAGER");
+            
+            if (!isAdmin && String(u.mobile).trim() !== String(user.mobile).trim()) {
+                return; // इतर कर्मचाऱ्यांचा डेटा सोडून द्या (Skip)
+            }
+
+            if (isAdmin && filterRole !== "सर्व" && u.role !== filterRole) return;
+
             if (isAllForm || allowedRoles.includes(u.role)) {
                 let userVillages = masterData.villages.filter(v => String(v.SubCenterID).trim().toLowerCase() === String(u.subcenter).trim().toLowerCase());
                 userVillages.forEach(v => {
@@ -54,7 +67,6 @@ function generatePendingReport() {
                 <th style="border: 1px solid #ccc; padding: 8px; text-align:left;">थकबाकीदार कर्मचारी (उपकेंद्र) - अपूर्ण गावे</th>
                 </tr></thead><tbody>`;
             
-            // 🟢 Group Villages by Employee and Subcenter
             let empMap = {};
             groupedData[fName].forEach(p => {
                 let key = p.name + "###" + p.sc;
@@ -63,13 +75,14 @@ function generatePendingReport() {
             });
 
             let idx = 1;
-            let sortedKeys = Object.keys(empMap).sort(); // Sort Alphabetically
+            let sortedKeys = Object.keys(empMap).sort(); 
             
             sortedKeys.forEach(key => {
                 let [empName, scName] = key.split("###");
                 let villagesStr = empMap[key].join(", ");
 
                 html += `<tr>
+
                     <td style="border: 1px solid #ccc; padding: 8px; text-align:center; font-weight:bold;">${idx++}</td>
                     <td style="border: 1px solid #ccc; padding: 8px; text-align:left; font-size:15px;">
                         <span style="color:#0056b3; font-weight:bold;">${empName}</span> - 
@@ -83,12 +96,10 @@ function generatePendingReport() {
         }
     }
 
-    if(!hasData) { html = `<h3 style="text-align:center; color:green; padding:30px;">🎉 उत्कृष्ट! सर्व अहवाल पूर्ण भरले आहेत.</h3>`; downArea.innerHTML = ""; }
+    if(!hasData) { html = `<h3 style="text-align:center; color:green; padding:30px;">🎉 उत्कृष्ट! तुमचे सर्व अहवाल पूर्ण भरले आहेत.</h3>`; downArea.innerHTML = ""; }
     container.innerHTML = html + `</div>`;
     document.getElementById('reportContentArea').classList.remove('hidden');
-}
-
-// 🟢 PDF Download Logic
+}// 🟢 PDF Download Logic
 function downloadPendingPDF() {
     const element = document.getElementById('pdfExportArea');
     const selMonth = document.getElementById('reportMonth').value;
