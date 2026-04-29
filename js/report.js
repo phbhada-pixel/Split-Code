@@ -95,50 +95,60 @@ function generatePendingReport() {
     document.getElementById('reportContentArea').classList.remove('hidden');
 }
 
-// 🟢 PDF Download Logic
-// 🟢 Text-Copyable PDF Logic (Using Native Browser Print)
+// 🟢 Text-Copyable PDF Logic (Using Hidden Iframe - No Popups)
 function downloadPendingPDF() {
     const selMonth = document.getElementById('reportMonth').value;
     const selYear = document.getElementById('reportYear').value;
-    const elementHtml = document.getElementById('pdfExportArea').innerHTML;
-    
-    // एक नवीन तात्पुरती प्रिंट विंडो उघडा
-    let printWindow = window.open('', '_blank', 'width=900,height=700');
-    
-    // प्रिंट करण्यासाठी आवश्यक CSS आणि HTML डिझाईन (Text format)
-    printWindow.document.write(`
+    const printContent = document.getElementById('pdfExportArea').innerHTML;
+
+    // जुनी आयफ्रेम असल्यास काढून टाका
+    let oldFrame = document.getElementById('pdfPrintFrame');
+    if (oldFrame) { oldFrame.remove(); }
+
+    // नवीन लपलेली (Hidden) आयफ्रेम तयार करा
+    const iframe = document.createElement('iframe');
+    iframe.id = 'pdfPrintFrame';
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0px';
+    iframe.style.height = '0px';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+
+    let doc = iframe.contentWindow.document;
+    doc.open();
+    // प्रिंट करण्यासाठी आवश्यक डिझाईन
+    doc.write(`
         <html>
         <head>
-            <title>अपूर्ण_अहवाल_${selMonth}_${selYear}</title>
+            <title>अहवाल_अप्राप्त_यादी_${selMonth}_${selYear}</title>
             <style>
-                body { font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; color: #333; line-height: 1.5; }
-                h2 { text-align: center; color: #c0392b !important; border-bottom: 2px solid #ccc; padding-bottom: 10px; }
-                .pdf-group-header { background: #f8f9fa !important; color: #c0392b !important; padding: 10px; font-weight: bold; border-bottom: 2px solid #c0392b !important; margin-top: 20px; margin-bottom: 10px; font-size: 16px; }
-                .report-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px; }
-                .report-table th { background-color: #f4f7f6 !important; border: 1px solid #aaa !important; padding: 10px; text-align: left; color: #000 !important; font-weight: bold; }
-                .report-table td { border: 1px solid #aaa !important; padding: 10px; text-align: left; }
-                .report-table td:first-child, .report-table th:first-child { text-align: center; width: 10%; }
-                
-                /* प्रिंट करताना कलर्स आणि बॅकग्राउंड दिसावे यासाठी खास सेटिंग */
+                body { font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; color: #000; }
+                h2 { text-align: center; color: #c0392b; border-bottom: 2px solid #ccc; padding-bottom: 10px; }
+                .pdf-group-header { background: #f8f9fa; color: #c0392b; padding: 10px; font-weight: bold; font-size: 16px; margin-top: 20px; border-bottom: 1px solid #c0392b; }
+                table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                th, td { border: 1px solid #000; padding: 8px; text-align: left; font-size: 14px; }
+                th { background-color: #f2f2f2; font-weight: bold; }
+                td:first-child, th:first-child { text-align: center; width: 10%; }
+                /* कलर्स प्रिंटमध्ये दिसण्यासाठी */
                 @media print {
                     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
                 }
             </style>
         </head>
         <body>
-            ${elementHtml}
+            ${printContent}
         </body>
         </html>
     `);
-    
-    printWindow.document.close();
-    printWindow.focus();
-    
-    // थोडा वेळ थांबून ब्राउझरचा प्रिंट डायलॉग उघडा
+    doc.close();
+
+    // फ्रेम लोड होण्यासाठी थोडा वेळ देऊन प्रिंट कमांड रन करणे
     setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-    }, 500);
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+    }, 800);
 }
 
 function getProgressiveTargetMonthsAndYears(selM, selY) {
