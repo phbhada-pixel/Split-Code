@@ -136,13 +136,27 @@ function loadDynamicFields() {
     const fId = document.getElementById('selForm').value;
     const vId = document.getElementById('selVillage').value;
     const area = document.getElementById('dynamicFormArea');
+    const nilArea = document.getElementById('nilButtonContainer'); 
     const month = document.getElementById('selMonth').value;
     const year = document.getElementById('selYear').value;
 
     area.innerHTML = "";
+    if(nilArea) nilArea.innerHTML = ""; 
     document.getElementById('mainSaveBtn').style.display = 'none';
 
-    if(!fId || !vId) return;
+    if(!fId) return;
+
+    // 🟢 जर 'List' प्रकारचा फॉर्म निवडला असेल, तर 'उर्वरित निरंक' बटन दाखवा
+    const selectedForm = masterData.forms.find(x => x.FormID === fId);
+    if(selectedForm && String(selectedForm.FormType).trim() === 'List' && nilArea) {
+        nilArea.innerHTML = `
+            <button type="button" onclick="submitNilReport('${fId}')" 
+                style="background:#e74c3c; color:white; font-weight:bold; border:none; padding:12px; border-radius:6px; cursor:pointer; width:100%; margin-top:10px; margin-bottom:5px; font-size:15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                ✅ राहिलेली उर्वरित गावे निरंक (Nil) सबमिट करा
+            </button>`;
+    }
+
+    if(!vId) return; // गाव निवडले नसेल तर पुढे जाऊ नका
 
     if (isMonthLocked(month, year)) {
         area.innerHTML = "<p style='color:red; text-align:center; font-weight:bold; font-size:18px; padding:20px; border:2px solid red; border-radius:8px; background:#fff;'>⏳ क्षमस्व! या महिन्याची माहिती भरण्याची किंवा बदलण्याची मुदत (पुढील महिन्याची १० तारीख) संपली आहे.</p>";
@@ -382,7 +396,6 @@ function generateBulkTableHTML(f, availableVillages, formPrefix) {
     return `<div class="table-responsive" style="max-height: 65vh; overflow: auto; border: 1px solid #ddd; margin-top:0;"><table class="report-table" style="width:100%; border-collapse: separate; border-spacing: 0;"><thead style="position: sticky; top: 0; z-index: 3;">${headersHtml}</thead><tbody>${rowsHtml}</tbody></table></div>`;
 }
 
-// 🟢 MODIFIED: Added Nil Report Button
 function generateListHTML(f, formPrefix) {
     let fields = extractFieldsFromForm(f);
     let html = `<h3 style="background: #00705a; color: white; padding: 10px; margin: 0;">📌 ${f.FormName} (रुग्ण/लाभार्थी यादी)</h3>`;
@@ -418,9 +431,8 @@ function generateListHTML(f, formPrefix) {
         html += `</tbody></table></div>`;
     }
     
-    html += `<div style="display:flex; gap:10px; margin-top:15px; flex-wrap:wrap;">`;
-    html += `<button type="button" onclick="addListRow('${f.FormID}')" style="background:#17a2b8; color:white; font-weight:bold; border:none; padding:12px; border-radius:6px; cursor:pointer; flex:1; min-width:200px; font-size:15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">➕ आणखी एक नोंद/रुग्ण जोडा</button>`;
-    html += `<button type="button" onclick="submitNilReport('${f.FormID}')" style="background:#e74c3c; color:white; font-weight:bold; border:none; padding:12px; border-radius:6px; cursor:pointer; flex:1; min-width:200px; font-size:15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">✅ सर्व गावांसाठी 'निरंक (Nil)' सबमिट करा</button>`;
+    html += `<div style="display:flex; justify-content:center; margin-top:15px; margin-bottom:15px;">`;
+    html += `<button type="button" onclick="addListRow('${f.FormID}')" style="background:#17a2b8; color:white; font-weight:bold; border:none; padding:12px 30px; border-radius:6px; cursor:pointer; font-size:15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">➕ आणखी एक नोंद/रुग्ण जोडा</button>`;
     html += `</div>`;
     
     setTimeout(() => updateListRowNumbers(f.FormID), 50);
@@ -608,6 +620,7 @@ async function saveDataToServer() {
             document.getElementById('netStatus').innerText = "Online";
             document.getElementById('selVillage').value = "";
             document.getElementById('dynamicFormArea').innerHTML = "";
+            document.getElementById('nilButtonContainer').innerHTML = "";
             updateFormDropdowns(); updateVillageDropdown();
             if(typeof updateEditVillageDropdown === "function") updateEditVillageDropdown();
         } else { throw new Error("Server error"); }
@@ -622,34 +635,45 @@ async function saveDataToServer() {
     }
 }
 
-// 🟢 NEW: Submit Nil Report Logic
+// 🟢 NEW: Submit Nil Report Logic (फक्त उर्वरित गावांसाठी)
 async function submitNilReport(fId) {
     if(isSaving) return;
     const month = document.getElementById('selMonth').value;
     const year = document.getElementById('selYear').value;
+    const f = masterData.forms.find(x => x.FormID === fId);
 
     if (isMonthLocked(month, year)) {
         alert("⏳ क्षमस्व! मुदत संपली आहे.");
         return;
     }
 
-    if(!confirm(`तुम्हाला खात्री आहे का की ${month} ${year} या महिन्यासाठी संपूर्ण उपकेंद्राचा (सर्व गावांचा) अहवाल 'निरंक (Nil)' म्हणून सबमिट करायचा आहे?`)) {
+    if(!confirm(`तुम्हाला खात्री आहे का की ${month} ${year} साठी राहिलेल्या सर्व उर्वरित गावांचा अहवाल 'निरंक' म्हणून सबमिट करायचा आहे?`)) {
         return;
     }
 
     isSaving = true;
     if(document.getElementById('mainSaveBtn')) document.getElementById('mainSaveBtn').disabled = true;
 
-    // Get all villages for the user's subcenter
-    let baseVillages = [];
+    // फक्त तीच गावे शोधा ज्यांचा अहवाल अजून भरलेला नाही
+    let remainingVillages = [];
     masterData.villages.forEach(v => {
-        if(String(v.SubCenterID).trim().toLowerCase() === String(user.subcenter).trim().toLowerCase() || String(v.SubCenterID).trim().toLowerCase() === "all") { 
-            baseVillages.push(v.VillageName); 
+        const belongsToSubCenter = String(v.SubCenterID).trim().toLowerCase() === String(user.subcenter).trim().toLowerCase() || String(v.SubCenterID).trim().toLowerCase() === "all";
+        if(belongsToSubCenter) {
+            if (!isFormFilledForVillage(f, v.VillageName, month, year)) {
+                remainingVillages.push(v.VillageName);
+            }
         }
     });
 
+    if(remainingVillages.length === 0) {
+        alert("सर्व गावांचा अहवाल आधीच भरलेला आहे!");
+        isSaving = false;
+        if(document.getElementById('mainSaveBtn')) document.getElementById('mainSaveBtn').disabled = false;
+        return;
+    }
+
     let dataToSave = [];
-    baseVillages.forEach(village => {
+    remainingVillages.forEach(village => {
         let formData = { "माहिती": "निरंक (Nil Report)" };
         formData["महिना"] = month;
         formData["वर्ष"] = year;
@@ -664,16 +688,9 @@ async function submitNilReport(fId) {
         dataToSave.push(entry);
     });
 
-    if(dataToSave.length === 0) {
-        alert("तुमच्या उपकेंद्रासाठी गावे उपलब्ध नाहीत.");
-        isSaving = false;
-        if(document.getElementById('mainSaveBtn')) document.getElementById('mainSaveBtn').disabled = false;
-        return;
-    }
-
     const statusText = document.getElementById('syncStatus');
     statusText.style.color = "orange";
-    statusText.innerText = "☁️ निरंक (Nil) अहवाल थेट गुगल शीटवर सेव्ह होत आहे... कृपया थांबा.";
+    statusText.innerText = "☁️ उर्वरित गावांचा निरंक (Nil) अहवाल सेव्ह होत आहे... कृपया थांबा.";
 
     try {
         const r = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({action:"syncData", payload: dataToSave}) });
@@ -684,7 +701,7 @@ async function submitNilReport(fId) {
         const d = JSON.parse(textResponse);
         if(d.success) {
             statusText.style.color = "green";
-            statusText.innerText = "✅ निरंक अहवाल यशस्वीरित्या सेव्ह झाला!";
+            statusText.innerText = "✅ उर्वरित गावांचा निरंक अहवाल यशस्वीरित्या सेव्ह झाला!";
             setTimeout(() => { statusText.innerText = ""; }, 4000);
 
             document.getElementById('netStatus').innerText = "डेटा रिफ्रेश होत आहे...";
@@ -692,7 +709,8 @@ async function submitNilReport(fId) {
             document.getElementById('netStatus').innerText = "Online";
 
             document.getElementById('selVillage').value = "";
-            document.getElementById('dynamicFormArea').innerHTML = "<p style='color:green; text-align:center; font-weight:bold; font-size:18px; padding:20px; border:2px solid green; border-radius:8px;'>🎉 अभिनंदन! या महिन्यासाठी हा अहवाल 'निरंक (Nil)' म्हणून यशस्वीरित्या सबमिट झाला आहे. आता तुमचे नाव थकबाकीदार यादीत येणार नाही!</p>";
+            document.getElementById('dynamicFormArea').innerHTML = "<p style='color:green; text-align:center; font-weight:bold; font-size:18px; padding:20px; border:2px solid green; border-radius:8px;'>🎉 अभिनंदन! या महिन्यासाठी हा अहवाल 'निरंक (Nil)' म्हणून यशस्वीरित्या सबमिट झाला आहे.</p>";
+            document.getElementById('nilButtonContainer').innerHTML = "";
             if(document.getElementById('mainSaveBtn')) document.getElementById('mainSaveBtn').style.display = 'none';
             
             updateVillageDropdown();
