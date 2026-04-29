@@ -1,4 +1,4 @@
-// 🟢 PENDING REPORT & PDF LOGIC
+// 🟢 PENDING REPORT LOGIC
 function generatePendingReport() {
     const selMonth = document.getElementById('reportMonth').value;
     const selYear = document.getElementById('reportYear').value;
@@ -46,7 +46,13 @@ function generatePendingReport() {
 
     let container = document.getElementById('reportTableContainer');
     let downArea = document.getElementById('downloadButtonsArea');
-    downArea.innerHTML = `<button onclick="downloadPendingPDF()" style="background:#e74c3c; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; font-weight:bold;">📥 अहवाल PDF मध्ये डाउनलोड करा</button>`;
+    
+    downArea.innerHTML = `
+        <div style="display:flex; justify-content:flex-end; gap:10px; flex-wrap:wrap;">
+            <button onclick="copyPendingListText()" style="background:#6c757d; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; font-weight:bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">📋 यादी कॉपी करा (WhatsApp साठी)</button>
+            <button onclick="downloadPendingPDF()" style="background:#e74c3c; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; font-weight:bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">📥 PDF डाउनलोड करा</button>
+        </div>
+    `;
     
     let html = `<div id="pdfExportArea" class="pdf-container">
         <h2 style="text-align:center; color:#c0392b; border-bottom: 2px solid #ccc; padding-bottom:10px;">अपूर्ण अहवाल यादी (${selMonth} ${selYear})</h2>`;
@@ -56,7 +62,7 @@ function generatePendingReport() {
         if(groupedData[fName].length > 0) {
             hasData = true;
             html += `<div class="pdf-group-header">📄 फॉर्म: ${fName}</div>`;
-            html += `<table class="report-table" style="width:100%; border-collapse:collapse; margin-bottom:30px;">
+            html += `<table class="report-table pending-data-table" style="width:100%; border-collapse:collapse; margin-bottom:30px;">
                 <thead style="background:#f4f7f6;"><tr>
                 <th style="border: 1px solid #ccc; padding: 8px; width:10%; text-align:center;">अ.क्र.</th>
                 <th style="border: 1px solid #ccc; padding: 8px; text-align:left;">अहवाल अप्राप्त असणारे कर्मचारी (उपकेंद्र) - अपूर्ण गावे</th>
@@ -78,7 +84,7 @@ function generatePendingReport() {
 
                 html += `<tr>
                     <td style="border: 1px solid #ccc; padding: 8px; text-align:center; font-weight:bold;">${idx++}</td>
-                    <td style="border: 1px solid #ccc; padding: 8px; text-align:left; font-size:15px;">
+                    <td style="border: 1px solid #ccc; padding: 8px; text-align:left; font-size:15px;" class="copy-target-cell">
                         <span style="color:#0056b3; font-weight:bold;">${empName}</span> - 
                         <span style="color:#d35400; font-weight:bold;">${scName}</span> 
                         <span style="color:#28a745; font-weight:bold;">(${villagesStr})</span>
@@ -95,17 +101,58 @@ function generatePendingReport() {
     document.getElementById('reportContentArea').classList.remove('hidden');
 }
 
-// 🟢 Text-Copyable PDF Logic (Using Hidden Iframe - No Popups)
+// 🟢 Text Copy Function
+function copyPendingListText() {
+    const selMonth = document.getElementById('reportMonth').value;
+    const selYear = document.getElementById('reportYear').value;
+    
+    let textToCopy = `*अहवाल अप्राप्त यादी (${selMonth} ${selYear})*\n\n`;
+    
+    let tables = document.querySelectorAll('.pending-data-table');
+    if(tables.length === 0) {
+        alert("कॉपी करण्यासाठी कोणतीही माहिती नाही.");
+        return;
+    }
+
+    let formHeaders = document.querySelectorAll('.pdf-group-header');
+    
+    tables.forEach((table, tableIndex) => {
+        let formName = formHeaders[tableIndex] ? formHeaders[tableIndex].innerText.replace('📄 फॉर्म: ', '').trim() : "अहवाल";
+        textToCopy += `📌 *${formName}*\n`;
+        
+        let rows = table.querySelectorAll('tbody tr');
+        rows.forEach((row, rowIndex) => {
+            let cells = row.querySelectorAll('td');
+            if(cells.length >= 2) {
+                let details = cells[1].innerText.replace(/\n/g, " ").trim();
+                textToCopy += `${rowIndex + 1}. ${details}\n`;
+            }
+        });
+        textToCopy += `\n`;
+    });
+
+    navigator.clipboard.writeText(textToCopy).then(() => {
+        alert("✅ यादी यशस्वीरित्या कॉपी झाली! आता तुम्ही ती WhatsApp वर Paste करू शकता.");
+    }).catch(err => {
+        let tempInput = document.createElement("textarea");
+        tempInput.value = textToCopy;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        document.execCommand("copy");
+        document.body.removeChild(tempInput);
+        alert("✅ यादी यशस्वीरित्या कॉपी झाली! आता तुम्ही ती WhatsApp वर Paste करू शकता.");
+    });
+}
+
+// 🟢 Text-Copyable PDF Logic (Using Hidden Iframe)
 function downloadPendingPDF() {
     const selMonth = document.getElementById('reportMonth').value;
     const selYear = document.getElementById('reportYear').value;
     const printContent = document.getElementById('pdfExportArea').innerHTML;
 
-    // जुनी आयफ्रेम असल्यास काढून टाका
     let oldFrame = document.getElementById('pdfPrintFrame');
     if (oldFrame) { oldFrame.remove(); }
 
-    // नवीन लपलेली (Hidden) आयफ्रेम तयार करा
     const iframe = document.createElement('iframe');
     iframe.id = 'pdfPrintFrame';
     iframe.style.position = 'fixed';
@@ -118,7 +165,6 @@ function downloadPendingPDF() {
 
     let doc = iframe.contentWindow.document;
     doc.open();
-    // प्रिंट करण्यासाठी आवश्यक डिझाईन
     doc.write(`
         <html>
         <head>
@@ -131,10 +177,7 @@ function downloadPendingPDF() {
                 th, td { border: 1px solid #000; padding: 8px; text-align: left; font-size: 14px; }
                 th { background-color: #f2f2f2; font-weight: bold; }
                 td:first-child, th:first-child { text-align: center; width: 10%; }
-                /* कलर्स प्रिंटमध्ये दिसण्यासाठी */
-                @media print {
-                    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                }
+                @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
             </style>
         </head>
         <body>
@@ -144,11 +187,26 @@ function downloadPendingPDF() {
     `);
     doc.close();
 
-    // फ्रेम लोड होण्यासाठी थोडा वेळ देऊन प्रिंट कमांड रन करणे
     setTimeout(() => {
         iframe.contentWindow.focus();
         iframe.contentWindow.print();
     }, 800);
+}
+
+function getTotalsRow(data, headers, showIndices) {
+    let totals = Array(headers.length).fill(0);
+    let isNumericCol = Array(headers.length).fill(false);
+    for(let c of showIndices) {
+        let colName = headers[c] || "";
+        if(colName.includes("मोबाईल") || colName.includes("क्रमांक") || colName === "तारीख" || colName === "महिना" || colName === "वर्ष" || colName === "उपकेंद्र" || colName === "गाव" || colName === "ग्रामपंचायत" || colName.includes("नाव") || colName.includes("स्तर")) { continue; }
+        let isNum = false; let colSum = 0;
+        for(let r=1; r<data.length; r++) {
+            let val = String(data[r][c] || "").trim();
+            if(val !== "" && val !== "-") { if(!isNaN(val)) { isNum = true; colSum += parseFloat(val); } else { isNum = false; break; } }
+        }
+        if(isNum) { isNumericCol[c] = true; totals[c] = colSum; }
+    }
+    return { totals, isNumericCol };
 }
 
 function getProgressiveTargetMonthsAndYears(selM, selY) {
@@ -167,128 +225,6 @@ function getProgressiveTargetMonthsAndYears(selM, selY) {
     return result;
 }
 
-async function fetchReportData() {
-    const formID = document.getElementById('reportFormSelect').value;
-    const selMonth = document.getElementById('reportMonth').value;
-    const selYear = document.getElementById('reportYear').value;
-
-    if(!formID) { alert("कृपया अहवाल निवडा"); return; }
-
-    let filterRole = "सर्व";
-    if((user.role === "Admin" || user.role === "VIEWER" || user.role === "MANAGER") && document.getElementById('reportRoleFilter')) {
-        filterRole = document.getElementById('reportRoleFilter').value;
-    }
-
-    document.getElementById('reportLoader').style.display = "block";
-    document.getElementById('reportContentArea').classList.add('hidden');
-    document.getElementById('reportTableContainer').innerHTML = "";
-
-    try {
-        const payload = { formID: formID, role: user.role, subcenter: user.subcenter, mobileNo: user.mobile, filterRole: filterRole };
-        const r = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({action:"getReportData", payload}) });
-        const textResponse = await r.text();
-        if(textResponse.trim().startsWith("<")) throw new Error("Google Server Blocked the Request.");
-        const d = JSON.parse(textResponse);
-        document.getElementById('reportLoader').style.display = "none";
-
-        if(d.success) {
-            if(d.reports && d.reports.length > 0) {
-                let finalReports = [];
-                d.reports.forEach(rep => {
-                    let headers = rep.data[0];
-                    if(!headers) return;
-
-                    const formObj = masterData.forms.find(x => x.FormName === rep.formName);
-                    let formTypeStr = formObj ? String(formObj.FormType).trim() : "";
-                    let isProgressive = formTypeStr.includes('ProgressiveStats');
-                    let isVertical = formTypeStr.includes('Vertical');
-                    let isList = formTypeStr.includes('List'); 
-
-                    let monthIdx = headers.indexOf("महिना");
-                    let yearIdx = headers.indexOf("वर्ष");
-                    let villageIdx = headers.indexOf("गाव");
-                    if(villageIdx === -1) villageIdx = headers.indexOf("Village"); 
-
-                    let fData = [];
-                    let dataRows = [];
-
-                    if (isProgressive && !isVertical && selMonth !== "सर्व" && selYear !== "सर्व") {
-                        let flatFields = extractFieldsFromForm(formObj);
-                        let numericLabels = flatFields.filter(f => f.orig.type === 'number' || f.orig.type === 'sum').map(f => f.label);
-                        let newHeaders = []; let numMap = {}; 
-                        headers.forEach((h, i) => {
-                            if (numericLabels.includes(h)) { newHeaders.push(`${h} - मासिक`); newHeaders.push(`${h} - प्रगत`); numMap[i] = true; } 
-                            else { newHeaders.push(h); }
-                        });
-                        fData.push(newHeaders);
-                        let targetPeriods = getProgressiveTargetMonthsAndYears(selMonth, selYear);
-                        let villageData = {};
-
-                        for(let i=1; i<rep.data.length; i++) {
-                            let row = rep.data[i];
-                            let m = String(row[monthIdx]).trim(); let y = String(row[yearIdx]).trim(); let v = String(row[villageIdx] || "").trim();
-                            if(targetPeriods.some(p => p.m === m && p.y === y)) {
-                                let sc = headers.indexOf("उपकेंद्र") > -1 ? String(row[headers.indexOf("उपकेंद्र")]).trim() : "";
-                                let mob = headers.indexOf("मोबाईल क्र.") > -1 ? String(row[headers.indexOf("मोबाईल क्र.")]).trim() : "";
-                                let gKey = `${sc}_${mob}_${v}`;
-                                if(!villageData[gKey]) {
-                                    villageData[gKey] = { baseRow: Array(headers.length).fill("-"), progressive: {}, monthly: {} };
-                                    headers.forEach((_, cIdx) => { if(!numMap[cIdx]) villageData[gKey].baseRow[cIdx] = row[cIdx]; });
-                                }
-                                if (m === selMonth && y === selYear) { headers.forEach((_, cIdx) => { if(!numMap[cIdx]) villageData[gKey].baseRow[cIdx] = row[cIdx]; }); }
-                                headers.forEach((_, cIdx) => {
-                                    if (numMap[cIdx]) {
-                                        let val = parseFloat(row[cIdx]);
-                                        if(!isNaN(val)) {
-                                            villageData[gKey].progressive[cIdx] = (villageData[gKey].progressive[cIdx] || 0) + val;
-                                            if (m === selMonth && y === selYear) { villageData[gKey].monthly[cIdx] = val; }
-                                        }
-                                    }
-                                });
-                            }
-                        }
-
-                        Object.keys(villageData).forEach(k => {
-                            let vData = villageData[k]; let newRow = [];
-                            headers.forEach((h, cIdx) => {
-                                if (numMap[cIdx]) { newRow.push(vData.monthly[cIdx] !== undefined ? vData.monthly[cIdx] : 0); newRow.push(vData.progressive[cIdx] !== undefined ? vData.progressive[cIdx] : 0); } 
-                                else { newRow.push(vData.baseRow[cIdx] !== undefined ? vData.baseRow[cIdx] : "-"); }
-                            });
-                            if(monthIdx > -1) newRow[monthIdx] = selMonth; if(yearIdx > -1) newRow[yearIdx] = selYear;
-                            dataRows.push(newRow);
-                        });
-                    } else if (isProgressive && isVertical && selMonth !== "सर्व" && selYear !== "सर्व") {
-                        fData.push(headers); 
-                        let targetPeriods = getProgressiveTargetMonthsAndYears(selMonth, selYear);
-                        let villageData = {};
-                        let flatFields = extractFieldsFromForm(formObj);
-                        let numericLabels = flatFields.filter(f => f.orig.type === 'number' || f.orig.type === 'sum').map(f => f.label);
-                        let numMap = {};
-                        headers.forEach((h, i) => { if (numericLabels.includes(h)) numMap[i] = true; });
-
-                        for(let i=1; i<rep.data.length; i++) {
-                            let row = rep.data[i];
-                            let m = String(row[monthIdx]).trim(); let y = String(row[yearIdx]).trim(); let v = String(row[villageIdx] || "").trim();
-                            if(targetPeriods.some(p => p.m === m && p.y === y)) {
-                                let sc = headers.indexOf("उपकेंद्र") > -1 ? String(row[headers.indexOf("उपकेंद्र")]).trim() : "";
-                                let mob = headers.indexOf("मोबाईल क्र.") > -1 ? String(row[headers.indexOf("मोबाईल क्र.")]).trim() : "";
-                                let gKey = `${sc}_${mob}_${v}`;
-                                if(!villageData[gKey]) {
-                                    villageData[gKey] = { baseRow: Array(headers.length).fill("-"), progressive: {}, monthly: {} };
-                                    headers.forEach((_, cIdx) => { if(!numMap[cIdx]) villageData[gKey].baseRow[cIdx] = row[cIdx]; });
-                                }
-                                if (m === selMonth && y === selYear) { headers.forEach((_, cIdx) => { if(!numMap[cIdx]) villageData[gKey].baseRow[cIdx] = row[cIdx]; }); }
-                                headers.forEach((_, cIdx) => {
-                                    if (numMap[cIdx]) {
-                                        let val = parseFloat(row[cIdx]);
-                                        if(!isNaN(val)) {
-                                            villageData[gKey].progressive[cIdx] = (villageData[gKey].progressive[cIdx] || 0) + val;
-                                            if (m === selMonth && y === selYear) { villageData[gKey].monthly[cIdx] = val; }
-                                        }
-                                    }
-                                });
-                            }
-                        }
 // 🟢 REPORT FETCHING LOGIC (With Nil Report Filter)
 async function fetchReportData() {
     const formID = document.getElementById('reportFormSelect').value;
@@ -321,7 +257,7 @@ async function fetchReportData() {
                     let headers = rep.data[0];
                     if(!headers) return;
 
-                    // 🟢 नवीन बदल: निरंक अहवाल (Nil Reports) फिल्टर करून रिपोर्टमधून आणि एक्सेल मधून काढून टाकणे
+                    // 🟢 फिल्टर: निरंक अहवाल (Nil Reports) काढून टाकणे
                     let validData = [headers];
                     for(let i=1; i<rep.data.length; i++) {
                         let isNil = rep.data[i].some(cell => String(cell).includes("निरंक (Nil Report)"));
@@ -460,9 +396,11 @@ async function fetchReportData() {
 function renderMultipleTables(reports, month, year) {
     let container = document.getElementById('reportTableContainer');
     let downArea = document.getElementById('downloadButtonsArea');
-    downArea.innerHTML = `<button onclick="downloadConsolidatedExcel()" style="background:#28a745; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; font-weight:bold; font-size: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">📥 Excel (.xlsx) डाउनलोड करा</button>`;
-
-    let html = "";
+    
+    // डाउनलोड बटण आधीच्या HTML ला न काढता त्यात जोडण्यासाठी += वापरा (किंवा insertAdjacentHTML वापरा)
+    let excelBtnHtml = `<button onclick="downloadConsolidatedExcel()" style="background:#28a745; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; font-weight:bold; font-size: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom:15px; width:100%;">📥 Excel (.xlsx) डाउनलोड करा</button>`;
+    
+    let html = excelBtnHtml;
     let periodText = (month === 'सर्व' && year === 'सर्व') ? 'सर्व महिने' : `${month} ${year !== 'सर्व' ? year : ''}`;
 
     reports.forEach(rep => {
