@@ -1,5 +1,7 @@
 // 🟢 NEW: GROUPED PENDING REPORT & PDF LOGIC
 // 🟢 NEW: GROUPED PENDING REPORT & PDF LOGIC (With Admin Security)
+
+// 🟢 NEW: GROUPED PENDING REPORT & PDF LOGIC (With List Forms Included)
 function generatePendingReport() {
     const selMonth = document.getElementById('reportMonth').value;
     const selYear = document.getElementById('reportYear').value;
@@ -9,12 +11,13 @@ function generatePendingReport() {
 
     let groupedData = {}; 
     let filterRole = "सर्व";
-    // ॲडमिन फिल्टर फक्त ॲडमिनसाठीच उपलब्ध असतो
     if (document.getElementById('reportRoleFilter')) {
         filterRole = document.getElementById('reportRoleFilter').value;
     }
 
-    let formsToCheck = masterData.forms.filter(f => !isFormInactive(f) && String(f.FormType).trim() !== 'List');
+    // 🟢 बदल: येथे पूर्वी List फॉर्म वगळले जात होते, आता सर्व फॉर्म्स तपासले जातील.
+    let formsToCheck = masterData.forms.filter(f => !isFormInactive(f));
+    
     if(reportFormSelect !== "ALL" && reportFormSelect !== "") {
         formsToCheck = formsToCheck.filter(f => f.FormID === reportFormSelect);
     }
@@ -25,13 +28,9 @@ function generatePendingReport() {
         groupedData[f.FormName] = [];
 
         masterData.users.forEach(u => {
-            // 🟢 सुरक्षा (Security Check): ॲडमिन नसेल तर फक्त स्वतःचा डेटा दिसेल
             let isAdmin = (user.role === "Admin" || user.role === "VIEWER" || user.role === "MANAGER");
             
-            if (!isAdmin && String(u.mobile).trim() !== String(user.mobile).trim()) {
-                return; // इतर कर्मचाऱ्यांचा डेटा सोडून द्या (Skip)
-            }
-
+            if (!isAdmin && String(u.mobile).trim() !== String(user.mobile).trim()) return;
             if (isAdmin && filterRole !== "सर्व" && u.role !== filterRole) return;
 
             if (isAllForm || allowedRoles.includes(u.role)) {
@@ -48,6 +47,57 @@ function generatePendingReport() {
             }
         });
     });
+
+    let container = document.getElementById('reportTableContainer');
+    let downArea = document.getElementById('downloadButtonsArea');
+    downArea.innerHTML = `<button onclick="downloadPendingPDF()" style="background:#e74c3c; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; font-weight:bold;">📥 अहवाल PDF मध्ये डाउनलोड करा</button>`;
+    
+    let html = `<div id="pdfExportArea" class="pdf-container">
+        <h2 style="text-align:center; color:#c0392b; border-bottom: 2px solid #ccc; padding-bottom:10px;">अपूर्ण अहवाल यादी (${selMonth} ${selYear})</h2>`;
+    
+    let hasData = false;
+    for(let fName in groupedData) {
+        if(groupedData[fName].length > 0) {
+            hasData = true;
+            html += `<div class="pdf-group-header">📄 फॉर्म: ${fName}</div>`;
+            html += `<table class="report-table" style="width:100%; border-collapse:collapse; margin-bottom:30px;">
+                <thead style="background:#f4f7f6;"><tr>
+                <th style="border: 1px solid #ccc; padding: 8px; width:10%; text-align:center;">अ.क्र.</th>
+                <th style="border: 1px solid #ccc; padding: 8px; text-align:left;">थकबाकीदार कर्मचारी (उपकेंद्र) - अपूर्ण गावे</th>
+                </tr></thead><tbody>`;
+            
+            let empMap = {};
+            groupedData[fName].forEach(p => {
+                let key = p.name + "###" + p.sc;
+                if(!empMap[key]) empMap[key] = [];
+                empMap[key].push(p.village);
+            });
+
+            let idx = 1;
+            let sortedKeys = Object.keys(empMap).sort(); 
+            
+            sortedKeys.forEach(key => {
+                let [empName, scName] = key.split("###");
+                let villagesStr = empMap[key].join(", ");
+
+                html += `<tr>
+                    <td style="border: 1px solid #ccc; padding: 8px; text-align:center; font-weight:bold;">${idx++}</td>
+                    <td style="border: 1px solid #ccc; padding: 8px; text-align:left; font-size:15px;">
+                        <span style="color:#0056b3; font-weight:bold;">${empName}</span> - 
+                        <span style="color:#d35400; font-weight:bold;">${scName}</span> 
+                        <span style="color:#28a745; font-weight:bold;">(${villagesStr})</span>
+                    </td>
+                </tr>`;
+            });
+            
+            html += `</tbody></table>`;
+        }
+    }
+
+    if(!hasData) { html = `<h3 style="text-align:center; color:green; padding:30px;">🎉 उत्कृष्ट! तुमचे सर्व अहवाल पूर्ण भरले आहेत.</h3>`; downArea.innerHTML = ""; }
+    container.innerHTML = html + `</div>`;
+    document.getElementById('reportContentArea').classList.remove('hidden');
+}
 
     let container = document.getElementById('reportTableContainer');
     let downArea = document.getElementById('downloadButtonsArea');
