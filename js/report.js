@@ -289,6 +289,137 @@ async function fetchReportData() {
                                 });
                             }
                         }
+// 🟢 REPORT FETCHING LOGIC (With Nil Report Filter)
+async function fetchReportData() {
+    const formID = document.getElementById('reportFormSelect').value;
+    const selMonth = document.getElementById('reportMonth').value;
+    const selYear = document.getElementById('reportYear').value;
+
+    if(!formID) { alert("कृपया अहवाल निवडा"); return; }
+
+    let filterRole = "सर्व";
+    if((user.role === "Admin" || user.role === "VIEWER" || user.role === "MANAGER") && document.getElementById('reportRoleFilter')) {
+        filterRole = document.getElementById('reportRoleFilter').value;
+    }
+
+    document.getElementById('reportLoader').style.display = "block";
+    document.getElementById('reportContentArea').classList.add('hidden');
+    document.getElementById('reportTableContainer').innerHTML = "";
+
+    try {
+        const payload = { formID: formID, role: user.role, subcenter: user.subcenter, mobileNo: user.mobile, filterRole: filterRole };
+        const r = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({action:"getReportData", payload}) });
+        const textResponse = await r.text();
+        if(textResponse.trim().startsWith("<")) throw new Error("Google Server Blocked the Request.");
+        const d = JSON.parse(textResponse);
+        document.getElementById('reportLoader').style.display = "none";
+
+        if(d.success) {
+            if(d.reports && d.reports.length > 0) {
+                let finalReports = [];
+                d.reports.forEach(rep => {
+                    let headers = rep.data[0];
+                    if(!headers) return;
+
+                    // 🟢 नवीन बदल: निरंक अहवाल (Nil Reports) फिल्टर करून रिपोर्टमधून आणि एक्सेल मधून काढून टाकणे
+                    let validData = [headers];
+                    for(let i=1; i<rep.data.length; i++) {
+                        let isNil = rep.data[i].some(cell => String(cell).includes("निरंक (Nil Report)"));
+                        if(!isNil) validData.push(rep.data[i]);
+                    }
+                    rep.data = validData;
+
+                    const formObj = masterData.forms.find(x => x.FormName === rep.formName);
+                    let formTypeStr = formObj ? String(formObj.FormType).trim() : "";
+                    let isProgressive = formTypeStr.includes('ProgressiveStats');
+                    let isVertical = formTypeStr.includes('Vertical');
+                    let isList = formTypeStr.includes('List'); 
+
+                    let monthIdx = headers.indexOf("महिना");
+                    let yearIdx = headers.indexOf("वर्ष");
+                    let villageIdx = headers.indexOf("गाव");
+                    if(villageIdx === -1) villageIdx = headers.indexOf("Village"); 
+
+                    let fData = [];
+                    let dataRows = [];
+
+                    if (isProgressive && !isVertical && selMonth !== "सर्व" && selYear !== "सर्व") {
+                        let flatFields = extractFieldsFromForm(formObj);
+                        let numericLabels = flatFields.filter(f => f.orig.type === 'number' || f.orig.type === 'sum').map(f => f.label);
+                        let newHeaders = []; let numMap = {}; 
+                        headers.forEach((h, i) => {
+                            if (numericLabels.includes(h)) { newHeaders.push(`${h} - मासिक`); newHeaders.push(`${h} - प्रगत`); numMap[i] = true; } 
+                            else { newHeaders.push(h); }
+                        });
+                        fData.push(newHeaders);
+                        let targetPeriods = getProgressiveTargetMonthsAndYears(selMonth, selYear);
+                        let villageData = {};
+
+                        for(let i=1; i<rep.data.length; i++) {
+                            let row = rep.data[i];
+                            let m = String(row[monthIdx]).trim(); let y = String(row[yearIdx]).trim(); let v = String(row[villageIdx] || "").trim();
+                            if(targetPeriods.some(p => p.m === m && p.y === y)) {
+                                let sc = headers.indexOf("उपकेंद्र") > -1 ? String(row[headers.indexOf("उपकेंद्र")]).trim() : "";
+                                let mob = headers.indexOf("मोबाईल क्र.") > -1 ? String(row[headers.indexOf("मोबाईल क्र.")]).trim() : "";
+                                let gKey = `${sc}_${mob}_${v}`;
+                                if(!villageData[gKey]) {
+                                    villageData[gKey] = { baseRow: Array(headers.length).fill("-"), progressive: {}, monthly: {} };
+                                    headers.forEach((_, cIdx) => { if(!numMap[cIdx]) villageData[gKey].baseRow[cIdx] = row[cIdx]; });
+                                }
+                                if (m === selMonth && y === selYear) { headers.forEach((_, cIdx) => { if(!numMap[cIdx]) villageData[gKey].baseRow[cIdx] = row[cIdx]; }); }
+                                headers.forEach((_, cIdx) => {
+                                    if (numMap[cIdx]) {
+                                        let val = parseFloat(row[cIdx]);
+                                        if(!isNaN(val)) {
+                                            villageData[gKey].progressive[cIdx] = (villageData[gKey].progressive[cIdx] || 0) + val;
+                                            if (m === selMonth && y === selYear) { villageData[gKey].monthly[cIdx] = val; }
+                                        }
+                                    }
+                                });
+                            }
+                        }
+
+                        Object.keys(villageData).forEach(k => {
+                            let vData = villageData[k]; let newRow = [];
+                            headers.forEach((h, cIdx) => {
+                                if (numMap[cIdx]) { newRow.push(vData.monthly[cIdx] !== undefined ? vData.monthly[cIdx] : 0); newRow.push(vData.progressive[cIdx] !== undefined ? vData.progressive[cIdx] : 0); } 
+                                else { newRow.push(vData.baseRow[cIdx] !== undefined ? vData.baseRow[cIdx] : "-"); }
+                            });
+                            if(monthIdx > -1) newRow[monthIdx] = selMonth; if(yearIdx > -1) newRow[yearIdx] = selYear;
+                            dataRows.push(newRow);
+                        });
+                    } else if (isProgressive && isVertical && selMonth !== "सर्व" && selYear !== "सर्व") {
+                        fData.push(headers); 
+                        let targetPeriods = getProgressiveTargetMonthsAndYears(selMonth, selYear);
+                        let villageData = {};
+                        let flatFields = extractFieldsFromForm(formObj);
+                        let numericLabels = flatFields.filter(f => f.orig.type === 'number' || f.orig.type === 'sum').map(f => f.label);
+                        let numMap = {};
+                        headers.forEach((h, i) => { if (numericLabels.includes(h)) numMap[i] = true; });
+
+                        for(let i=1; i<rep.data.length; i++) {
+                            let row = rep.data[i];
+                            let m = String(row[monthIdx]).trim(); let y = String(row[yearIdx]).trim(); let v = String(row[villageIdx] || "").trim();
+                            if(targetPeriods.some(p => p.m === m && p.y === y)) {
+                                let sc = headers.indexOf("उपकेंद्र") > -1 ? String(row[headers.indexOf("उपकेंद्र")]).trim() : "";
+                                let mob = headers.indexOf("मोबाईल क्र.") > -1 ? String(row[headers.indexOf("मोबाईल क्र.")]).trim() : "";
+                                let gKey = `${sc}_${mob}_${v}`;
+                                if(!villageData[gKey]) {
+                                    villageData[gKey] = { baseRow: Array(headers.length).fill("-"), progressive: {}, monthly: {} };
+                                    headers.forEach((_, cIdx) => { if(!numMap[cIdx]) villageData[gKey].baseRow[cIdx] = row[cIdx]; });
+                                }
+                                if (m === selMonth && y === selYear) { headers.forEach((_, cIdx) => { if(!numMap[cIdx]) villageData[gKey].baseRow[cIdx] = row[cIdx]; }); }
+                                headers.forEach((_, cIdx) => {
+                                    if (numMap[cIdx]) {
+                                        let val = parseFloat(row[cIdx]);
+                                        if(!isNaN(val)) {
+                                            villageData[gKey].progressive[cIdx] = (villageData[gKey].progressive[cIdx] || 0) + val;
+                                            if (m === selMonth && y === selYear) { villageData[gKey].monthly[cIdx] = val; }
+                                        }
+                                    }
+                                });
+                            }
+                        }
 
                         Object.keys(villageData).forEach(k => {
                             let vData = villageData[k]; let newRow = [];
