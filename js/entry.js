@@ -146,17 +146,32 @@ function loadDynamicFields() {
 
     if(!fId) return;
 
-    // 🟢 जर 'List' प्रकारचा फॉर्म निवडला असेल, तर 'उर्वरित निरंक' बटन दाखवा
+    // 🟢 'List' प्रकारचा फॉर्म असेल तर 'उर्वरित निरंक' बटन दाखवा किंवा अगोदरच सेव्ह केलेला मेसेज दाखवा
     const selectedForm = masterData.forms.find(x => x.FormID === fId);
     if(selectedForm && String(selectedForm.FormType).trim() === 'List' && nilArea) {
-        nilArea.innerHTML = `
-            <button type="button" onclick="submitNilReport('${fId}')" 
-                style="background:#e74c3c; color:white; font-weight:bold; border:none; padding:12px; border-radius:6px; cursor:pointer; width:100%; margin-top:10px; margin-bottom:5px; font-size:15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                ✅ राहिलेली उर्वरित गावे निरंक (Nil) सबमिट करा
-            </button>`;
+        
+        let remainingVillages = [];
+        masterData.villages.forEach(v => {
+            const belongsToSubCenter = String(v.SubCenterID).trim().toLowerCase() === String(user.subcenter).trim().toLowerCase() || String(v.SubCenterID).trim().toLowerCase() === "all";
+            if(belongsToSubCenter) {
+                if (!isFormFilledForVillage(selectedForm, v.VillageName, month, year)) {
+                    remainingVillages.push(v.VillageName);
+                }
+            }
+        });
+
+        if (remainingVillages.length === 0) {
+            nilArea.innerHTML = `<div style="color:green; text-align:center; font-weight:bold; font-size:15px; padding:10px; border:1px solid #28a745; border-radius:6px; background:#e8f5e9; margin-top:10px; margin-bottom:10px;">✅ या महिन्यासाठी उर्वरित सर्व गावांचा निरंक अहवाल अगोदरच सेव्ह केलेला आहे.</div>`;
+        } else {
+            nilArea.innerHTML = `
+                <button type="button" onclick="submitNilReport('${fId}')" 
+                    style="background:#e74c3c; color:white; font-weight:bold; border:none; padding:12px; border-radius:6px; cursor:pointer; width:100%; margin-top:10px; margin-bottom:5px; font-size:15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                    ✅ राहिलेली उर्वरित गावे निरंक (Nil) सबमिट करा
+                </button>`;
+        }
     }
 
-    if(!vId) return; // गाव निवडले नसेल तर पुढे जाऊ नका
+    if(!vId) return;
 
     if (isMonthLocked(month, year)) {
         area.innerHTML = "<p style='color:red; text-align:center; font-weight:bold; font-size:18px; padding:20px; border:2px solid red; border-radius:8px; background:#fff;'>⏳ क्षमस्व! या महिन्याची माहिती भरण्याची किंवा बदलण्याची मुदत (पुढील महिन्याची १० तारीख) संपली आहे.</p>";
@@ -620,7 +635,10 @@ async function saveDataToServer() {
             document.getElementById('netStatus').innerText = "Online";
             document.getElementById('selVillage').value = "";
             document.getElementById('dynamicFormArea').innerHTML = "";
-            document.getElementById('nilButtonContainer').innerHTML = "";
+            
+            let nilArea = document.getElementById('nilButtonContainer');
+            if(nilArea) nilArea.innerHTML = "";
+            
             updateFormDropdowns(); updateVillageDropdown();
             if(typeof updateEditVillageDropdown === "function") updateEditVillageDropdown();
         } else { throw new Error("Server error"); }
@@ -635,7 +653,7 @@ async function saveDataToServer() {
     }
 }
 
-// 🟢 NEW: Submit Nil Report Logic (फक्त उर्वरित गावांसाठी)
+// 🟢 NEW: Submit Nil Report Logic (फक्त उर्वरित गावांसाठी आणि १००% Save गॅरंटीसह)
 async function submitNilReport(fId) {
     if(isSaving) return;
     const month = document.getElementById('selMonth').value;
@@ -647,14 +665,7 @@ async function submitNilReport(fId) {
         return;
     }
 
-    if(!confirm(`तुम्हाला खात्री आहे का की ${month} ${year} साठी राहिलेल्या सर्व उर्वरित गावांचा अहवाल 'निरंक' म्हणून सबमिट करायचा आहे?`)) {
-        return;
-    }
-
-    isSaving = true;
-    if(document.getElementById('mainSaveBtn')) document.getElementById('mainSaveBtn').disabled = true;
-
-    // फक्त तीच गावे शोधा ज्यांचा अहवाल अजून भरलेला नाही
+    // पुन्हा एकदा चेक करा की खरंच काही गावे उरली आहेत का? (Double Protection)
     let remainingVillages = [];
     masterData.villages.forEach(v => {
         const belongsToSubCenter = String(v.SubCenterID).trim().toLowerCase() === String(user.subcenter).trim().toLowerCase() || String(v.SubCenterID).trim().toLowerCase() === "all";
@@ -666,17 +677,44 @@ async function submitNilReport(fId) {
     });
 
     if(remainingVillages.length === 0) {
-        alert("सर्व गावांचा अहवाल आधीच भरलेला आहे!");
-        isSaving = false;
-        if(document.getElementById('mainSaveBtn')) document.getElementById('mainSaveBtn').disabled = false;
+        alert("सर्व गावांचा अहवाल आधीच भरलेला आहे किंवा अगोदरच निरंक सेव्ह केलेला आहे!");
+        loadDynamicFields(); // UI रिफ्रेश करा
         return;
     }
 
+    if(!confirm(`तुम्हाला खात्री आहे का की ${month} ${year} साठी राहिलेल्या सर्व उर्वरित (${remainingVillages.length}) गावांचा अहवाल 'निरंक' म्हणून सबमिट करायचा आहे?`)) {
+        return;
+    }
+
+    isSaving = true;
+    if(document.getElementById('mainSaveBtn')) document.getElementById('mainSaveBtn').disabled = true;
+
+    // 🟢 गुगल शीटमध्ये एरर येऊ नये म्हणून फॉर्ममधील "पहिल्या प्रश्नाचे नाव" शोधणे
+    let firstFieldLabel = "माहिती";
+    try {
+        let struct = JSON.parse(f.StructureJSON);
+        if (struct && struct.length > 0) {
+            let firstF = struct[0];
+            if (firstF.type === 'group' && firstF.subFields && firstF.subFields.length > 0) {
+                if (firstF.subFields[0].type === 'group' && firstF.subFields[0].subFields && firstF.subFields[0].subFields.length > 0) {
+                    firstFieldLabel = firstF.label + " - " + firstF.subFields[0].label + " - " + firstF.subFields[0].subFields[0].label;
+                } else {
+                    firstFieldLabel = firstF.label + " - " + firstF.subFields[0].label;
+                }
+            } else {
+                firstFieldLabel = firstF.label;
+            }
+        }
+    } catch(e) { console.error("Structure Parse Error:", e); }
+
     let dataToSave = [];
     remainingVillages.forEach(village => {
-        let formData = { "माहिती": "निरंक (Nil Report)" };
+        let formData = {};
+        // पहिल्या प्रश्नाच्या खाली "निरंक" सेव्ह करा जेणेकरून गुगल शीटमध्ये बरोबर एन्ट्री होईल
+        formData[firstFieldLabel] = "निरंक (Nil Report)";
         formData["महिना"] = month;
         formData["वर्ष"] = year;
+        
         const entry = { 
             entryID: Date.now() + Math.random(), 
             mobileNo: String(user.mobile).trim(), 
@@ -690,7 +728,7 @@ async function submitNilReport(fId) {
 
     const statusText = document.getElementById('syncStatus');
     statusText.style.color = "orange";
-    statusText.innerText = "☁️ उर्वरित गावांचा निरंक (Nil) अहवाल सेव्ह होत आहे... कृपया थांबा.";
+    statusText.innerText = `☁️ उर्वरित ${remainingVillages.length} गावांचा निरंक (Nil) अहवाल सेव्ह होत आहे... कृपया थांबा.`;
 
     try {
         const r = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({action:"syncData", payload: dataToSave}) });
@@ -705,14 +743,14 @@ async function submitNilReport(fId) {
             setTimeout(() => { statusText.innerText = ""; }, 4000);
 
             document.getElementById('netStatus').innerText = "डेटा रिफ्रेश होत आहे...";
-            await fetchData(); 
+            await fetchData(); // नवीन डेटा सर्व्हरवरून परत आणा
             document.getElementById('netStatus').innerText = "Online";
 
             document.getElementById('selVillage').value = "";
-            document.getElementById('dynamicFormArea').innerHTML = "<p style='color:green; text-align:center; font-weight:bold; font-size:18px; padding:20px; border:2px solid green; border-radius:8px;'>🎉 अभिनंदन! या महिन्यासाठी हा अहवाल 'निरंक (Nil)' म्हणून यशस्वीरित्या सबमिट झाला आहे.</p>";
-            document.getElementById('nilButtonContainer').innerHTML = "";
-            if(document.getElementById('mainSaveBtn')) document.getElementById('mainSaveBtn').style.display = 'none';
+            document.getElementById('dynamicFormArea').innerHTML = "";
             
+            // UI रिफ्रेश केल्यामुळे बटण गायब होऊन 'अगोदरच सेव्ह' चा मेसेज दिसेल
+            loadDynamicFields();
             updateVillageDropdown();
         } else { 
             throw new Error("Server error"); 
