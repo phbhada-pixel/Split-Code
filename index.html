@@ -65,6 +65,9 @@
             <div id="entrySection">
                 <label>फॉर्म निवडा:</label>
                 <select id="selForm" onchange="updateVillageDropdown(); loadDynamicFields();"></select>
+                
+                <div id="nilButtonContainer"></div>
+
                 <div class="row-flex" style="margin-top: 10px;">
                     <div><label>महिना:</label><select id="selMonth" onchange="updateFormDropdowns(); updateVillageDropdown();">
                         <option value="जानेवारी">जानेवारी</option><option value="फेब्रुवारी">फेब्रुवारी</option><option value="मार्च">मार्च</option><option value="एप्रिल" selected>एप्रिल</option>
@@ -98,7 +101,7 @@
                 <label>भरलेले गाव / रेकॉर्ड निवडा (फक्त मागील ४८ तासांतील):</label>
                 <select id="editVillageSelect"></select>
                 <button class="btn-edit-tab" id="btnFetchEdit" onclick="fetchRecordForEdit()" style="margin-top:15px; padding:12px;">माहिती मिळवा 🔍</button>
-                <div id="editLoader" style="text-align:center; color:orange; margin-top:10px; display:none; font-weight:bold;">डेटा शोधत आहे...</div>
+                <div id="editLoader" style="text-align:center; color:orange; margin-top:10px; display:none; font-weight:bold;">डेटा शोधत search करत आहे...</div>
                 <div id="editDynamicFormArea" class="hidden" style="margin-top: 20px;"></div>
                 <button id="editSaveBtn" class="btn-primary hidden" onclick="saveEditedData()" style="margin-top:20px; background:#e67e22;">बदल जतन करा (Update)</button>
                 <p id="editSyncStatus" style="text-align:center; font-size:14px; font-weight:bold; margin-top: 10px;"></p>
