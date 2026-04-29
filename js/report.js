@@ -59,7 +59,7 @@ function generatePendingReport() {
             html += `<table class="report-table" style="width:100%; border-collapse:collapse; margin-bottom:30px;">
                 <thead style="background:#f4f7f6;"><tr>
                 <th style="border: 1px solid #ccc; padding: 8px; width:10%; text-align:center;">अ.क्र.</th>
-                <th style="border: 1px solid #ccc; padding: 8px; text-align:left;">थकबाकीदार कर्मचारी (उपकेंद्र) - अपूर्ण गावे</th>
+                <th style="border: 1px solid #ccc; padding: 8px; text-align:left;">अहवाल अप्राप्त असणारे कर्मचारी (उपकेंद्र) - अपूर्ण गावे</th>
                 </tr></thead><tbody>`;
             
             let empMap = {};
