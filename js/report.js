@@ -96,34 +96,49 @@ function generatePendingReport() {
 }
 
 // 🟢 PDF Download Logic
+// 🟢 Text-Copyable PDF Logic (Using Native Browser Print)
 function downloadPendingPDF() {
-    const element = document.getElementById('pdfExportArea');
     const selMonth = document.getElementById('reportMonth').value;
     const selYear = document.getElementById('reportYear').value;
-    const opt = {
-        margin: 10,
-        filename: `अपूर्ण_अहवाल_${selMonth}_${selYear}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
-    html2pdf().set(opt).from(element).save();
-}
-
-function getTotalsRow(data, headers, showIndices) {
-    let totals = Array(headers.length).fill(0);
-    let isNumericCol = Array(headers.length).fill(false);
-    for(let c of showIndices) {
-        let colName = headers[c] || "";
-        if(colName.includes("मोबाईल") || colName.includes("क्रमांक") || colName === "तारीख" || colName === "महिना" || colName === "वर्ष" || colName === "उपकेंद्र" || colName === "गाव" || colName === "ग्रामपंचायत" || colName.includes("नाव") || colName.includes("स्तर")) { continue; }
-        let isNum = false; let colSum = 0;
-        for(let r=1; r<data.length; r++) {
-            let val = String(data[r][c] || "").trim();
-            if(val !== "" && val !== "-") { if(!isNaN(val)) { isNum = true; colSum += parseFloat(val); } else { isNum = false; break; } }
-        }
-        if(isNum) { isNumericCol[c] = true; totals[c] = colSum; }
-    }
-    return { totals, isNumericCol };
+    const elementHtml = document.getElementById('pdfExportArea').innerHTML;
+    
+    // एक नवीन तात्पुरती प्रिंट विंडो उघडा
+    let printWindow = window.open('', '_blank', 'width=900,height=700');
+    
+    // प्रिंट करण्यासाठी आवश्यक CSS आणि HTML डिझाईन (Text format)
+    printWindow.document.write(`
+        <html>
+        <head>
+            <title>अपूर्ण_अहवाल_${selMonth}_${selYear}</title>
+            <style>
+                body { font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; color: #333; line-height: 1.5; }
+                h2 { text-align: center; color: #c0392b !important; border-bottom: 2px solid #ccc; padding-bottom: 10px; }
+                .pdf-group-header { background: #f8f9fa !important; color: #c0392b !important; padding: 10px; font-weight: bold; border-bottom: 2px solid #c0392b !important; margin-top: 20px; margin-bottom: 10px; font-size: 16px; }
+                .report-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px; }
+                .report-table th { background-color: #f4f7f6 !important; border: 1px solid #aaa !important; padding: 10px; text-align: left; color: #000 !important; font-weight: bold; }
+                .report-table td { border: 1px solid #aaa !important; padding: 10px; text-align: left; }
+                .report-table td:first-child, .report-table th:first-child { text-align: center; width: 10%; }
+                
+                /* प्रिंट करताना कलर्स आणि बॅकग्राउंड दिसावे यासाठी खास सेटिंग */
+                @media print {
+                    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                }
+            </style>
+        </head>
+        <body>
+            ${elementHtml}
+        </body>
+        </html>
+    `);
+    
+    printWindow.document.close();
+    printWindow.focus();
+    
+    // थोडा वेळ थांबून ब्राउझरचा प्रिंट डायलॉग उघडा
+    setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+    }, 500);
 }
 
 function getProgressiveTargetMonthsAndYears(selM, selY) {
