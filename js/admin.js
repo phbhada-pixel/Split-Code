@@ -1,3 +1,88 @@
+// 🟢 JS/ADMIN.JS - पूर्ण फाईल (Google Apps Script साठी)
+
+function openNewFormBuilder() {
+    document.getElementById('formBuilder').classList.remove('hidden');
+    document.getElementById('builderTitle').innerText = "नवीन फॉर्म तयार करा";
+    document.getElementById('editFormID').value = "";
+    document.getElementById('newFormName').value = "";
+    document.getElementById('newFormType').value = "Stats";
+    document.getElementById('newFormLayout').value = "Horizontal";
+    document.getElementById('formIsActive').checked = true;
+    document.getElementById('roleAll').checked = true;
+    document.getElementById('specificRoles').style.display = "none";
+    document.querySelectorAll('.form-role').forEach(cb => cb.checked = false);
+    document.getElementById('fieldsList').innerHTML = "";
+    document.getElementById('mainActionBtn').innerText = "फॉर्म सेव्ह करा";
+    toggleLayoutOption();
+    addField(); 
+}
+
+function toggleLayoutOption() {
+    const type = document.getElementById('newFormType').value;
+    const layoutDiv = document.getElementById('layoutDiv');
+    if(type === 'ProgressiveStats') { layoutDiv.style.display = "block"; } 
+    else { layoutDiv.style.display = "none"; }
+}
+
+function toggleRoles(checkbox) {
+    const rolesDiv = document.getElementById('specificRoles');
+    if (checkbox.checked) { rolesDiv.style.display = "none"; } 
+    else { rolesDiv.style.display = "block"; }
+}
+
+function renderExistingFormsList() {
+    const area = document.getElementById('formsEditList');
+    if(!area) return;
+    area.innerHTML = "";
+    if(!masterData || !masterData.forms) return;
+    masterData.forms.forEach(f => {
+        let btn = document.createElement('button');
+        btn.innerText = `✏️ ${f.FormName} ${isFormInactive(f) ? '(Inactive)' : ''}`;
+        btn.className = "btn-edit-tab";
+        btn.style.margin = "5px";
+        btn.onclick = () => loadFormForEdit(f);
+        area.appendChild(btn);
+    });
+}
+
+function loadFormForEdit(f) {
+    document.getElementById('formBuilder').classList.remove('hidden');
+    document.getElementById('builderTitle').innerText = "फॉर्म एडिट करा: " + f.FormName;
+    document.getElementById('editFormID').value = f.FormID;
+    document.getElementById('newFormName').value = f.FormName;
+    
+    let typeStr = String(f.FormType).trim();
+    if(typeStr.includes('Vertical')) { document.getElementById('newFormType').value = "ProgressiveStats"; document.getElementById('newFormLayout').value = "Vertical"; } 
+    else if(typeStr.includes('ProgressiveStats')) { document.getElementById('newFormType').value = "ProgressiveStats"; document.getElementById('newFormLayout').value = "Horizontal"; } 
+    else if(typeStr.includes('List')) { document.getElementById('newFormType').value = "List"; document.getElementById('newFormLayout').value = "Horizontal"; } 
+    else { document.getElementById('newFormType').value = "Stats"; document.getElementById('newFormLayout').value = "Horizontal"; }
+    
+    toggleLayoutOption();
+
+    if (f.IsActive !== undefined) { document.getElementById('formIsActive').checked = f.IsActive; } 
+    else { document.getElementById('formIsActive').checked = true; }
+
+    let roles = f.AllowedRoles ? f.AllowedRoles.split(',').map(r=>r.trim().toUpperCase()) : ["ALL"];
+    if (roles.includes("ALL")) {
+        document.getElementById('roleAll').checked = true;
+        document.getElementById('specificRoles').style.display = "none";
+        document.querySelectorAll('.form-role').forEach(cb => cb.checked = false);
+    } else {
+        document.getElementById('roleAll').checked = false;
+        document.getElementById('specificRoles').style.display = "block";
+        document.querySelectorAll('.form-role').forEach(cb => { cb.checked = roles.includes(cb.value.toUpperCase()); });
+    }
+
+    document.getElementById('fieldsList').innerHTML = "";
+    document.getElementById('mainActionBtn').innerText = "बदल सेव्ह करा (Update)";
+
+    let structure = [];
+    try { structure = JSON.parse(f.StructureJSON); } catch(e) {}
+    
+    if(structure.length === 0) { addField(); } 
+    else { structure.forEach(field => addFieldToUI(field)); }
+}
+
 function addFieldToUI(fieldData = null) {
     const list = document.getElementById('fieldsList');
     const fDiv = document.createElement('div');
@@ -116,7 +201,6 @@ function addField() { addFieldToUI(); }
 function addSubField(parentDiv) { addSubFieldToUI(parentDiv); }
 function addSubSubField(parentDiv) { addSubSubFieldToUI(parentDiv); }
 
-// 🟢 फॉर्म सेव्ह करण्याचे अपडेटेड फंक्शन (३ लेव्हल पर्यंत सपोर्ट)
 async function saveFullForm() {
     let fId = document.getElementById('editFormID').value;
     let fName = document.getElementById('newFormName').value;
@@ -184,7 +268,6 @@ async function saveFullForm() {
     document.getElementById('mainActionBtn').disabled = true;
 
     try {
-        // GAS (Google Apps Script) ला डेटा पाठवणे
         const r = await fetch(GAS_URL, {
             method: "POST",
             body: JSON.stringify({ action: "saveForm", payload: formPayload })
