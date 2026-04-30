@@ -583,215 +583,112 @@ function renderMultipleTables(reports, month, year) {
     container.innerHTML = html;
 }
 
+// 🟢 MODIFIED: downloadConsolidatedExcel with Security for Aggregation
 function downloadConsolidatedExcel() {
     if(currentReports.length === 0) return;
+    
+    // 🟢 सुरक्षा अट: फक्त ॲडमिन/मॅनेजरलाच Grouping चा अधिकार
+    let groupType = "Village";
+    if (user.role === 'Admin' || user.role === 'MANAGER' || user.role === 'VIEWER') {
+        groupType = document.getElementById('reportGroupFilter') ? document.getElementById('reportGroupFilter').value : "Village";
+    }
+
+    let wb = XLSX.utils.book_new();
     let month = document.getElementById('reportMonth').value;
     let year = document.getElementById('reportYear').value;
     let filterRole = document.getElementById('reportRoleFilter') ? document.getElementById('reportRoleFilter').value : "सर्व";
+    
     let periodText = (month === 'सर्व' && year === 'सर्व') ? 'सर्व महिने' : `${month} ${year}`;
     if((user.role === 'Admin' || user.role === 'VIEWER' || user.role === 'MANAGER') && filterRole !== 'सर्व') periodText += ` (${filterRole})`;
 
-    let wb = XLSX.utils.book_new();
-
     currentReports.forEach((rep, index) => {
-        let data = rep.data;
-        let headers = data[0];
-        let showIndices = [];
+        let headers = rep.data[0]; 
+        let showIndices = []; 
         headers.forEach((h, i) => { if(!CONFIG.hiddenColumns.includes(h) && h !== "गाव" && h !== "Village") showIndices.push(i); });
-        let colCount = showIndices.length + 1;
-
+        
+        let subCenterIdx = headers.indexOf("उपकेंद्र"); 
+        let villageIdx = headers.indexOf("गाव");
+        let dataRows = rep.data.slice(1);
         const formObj = masterData.forms.find(x => x.FormName === rep.formName);
-        const formType = formObj ? String(formObj.FormType).trim() : "";
-        const isStats = formType.includes('Stats');
-        const isProgressive = formType.includes('ProgressiveStats');
-        const isVertical = formType.includes('Vertical');
-        const isList = formType.includes('List'); 
+        const isList = formObj && String(formObj.FormType).trim().includes('List');
 
-        let subCenterIdx = headers.indexOf("उपकेंद्र"); let nameIdx = headers.indexOf("कर्मचाऱ्याचे नाव"); let mobIdx = headers.indexOf("मोबाईल क्र."); let villageIdx = headers.indexOf("गाव");
-        let dataRows = data.slice(1);
-        let groups = {};
-
-        if(dataRows.length === 0) { groups["All"] = []; } 
-        else if (isList) {
-            groups["संपूर्ण तालुक्याची यादी (All Subcenters)###एकत्रित"] = dataRows;
-            groups["संपूर्ण तालुक्याची यादी (All Subcenters)###एकत्रित"].sort((a,b) => {
-                let scA = subCenterIdx > -1 ? String(a[subCenterIdx]||"") : ""; let scB = subCenterIdx > -1 ? String(b[subCenterIdx]||"") : "";
-                if(scA !== scB) return scA.localeCompare(scB);
-                let vA = villageIdx > -1 ? String(a[villageIdx]||"") : ""; let vB = villageIdx > -1 ? String(b[villageIdx]||"") : "";
-                return vA.localeCompare(vB);
-            });
-        } else {
+        // 🟢 उपकेंद्रनिहाय बेरीज करण्याचे लॉजिक (SubCenter Aggregation)
+        if (groupType === "SubCenter" && !isList) {
+            let aggregated = {};
             dataRows.forEach(row => {
                 let sc = subCenterIdx > -1 ? String(row[subCenterIdx] || "").trim() : "Unknown";
-                let mob = mobIdx > -1 ? String(row[mobIdx] || "").trim() : "Unknown";
-                let ename = nameIdx > -1 ? String(row[nameIdx] || "").trim() : mob;
-                if(ename === "undefined" || ename === "") ename = mob;
-                let key = sc + "###" + ename;
-                if(!groups[key]) groups[key] = [];
-                groups[key].push(row);
+                if (!aggregated[sc]) {
+                    aggregated[sc] = Array(headers.length).fill(0);
+                    headers.forEach((h, idx) => { if (!showIndices.includes(idx)) aggregated[sc][idx] = row[idx]; });
+                }
+                showIndices.forEach(idx => {
+                    let val = row[idx];
+                    if (typeof val === 'object' && val !== null) {
+                        if (typeof aggregated[sc][idx] !== 'object') aggregated[sc][idx] = { M: 0, P: 0 };
+                        aggregated[sc][idx].M += parseFloat(val.M || 0); 
+                        aggregated[sc][idx].P += parseFloat(val.P || 0);
+                    } else {
+                        let n = parseFloat(val); 
+                        if (!isNaN(n)) aggregated[sc][idx] = (parseFloat(aggregated[sc][idx]) || 0) + n;
+                        else aggregated[sc][idx] = val;
+                    }
+                });
             });
+            dataRows = Object.values(aggregated);
         }
 
-        let groupKeys = Object.keys(groups).sort();
-        let currentR = 2; let sheetData = []; let merges = [];
-        let colCountSafe = isVertical ? 2 : (showIndices.length + 2);
-
-        sheetData.push([`${rep.formName} अहवाल`]); sheetData.push([]);
-        merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } });
-
-        let groupHeaderRows = []; let headerRowIndices = [];
-
-        groupKeys.forEach(gKey => {
-            let gRows = groups[gKey]; let [sc, ename] = gKey.split("###");
-            if(!isList && villageIdx > -1) { gRows.sort((a, b) => String(a[villageIdx]||"").localeCompare(String(b[villageIdx]||""))); }
-
-            if(isVertical) {
-                let baseVariables = []; showIndices.forEach(idx => { baseVariables.push({ name: headers[idx], isProg: isProgressive, idxM: idx, idxP: idx }); });
-                let verticalColCount = 2 + (gRows.length * (isProgressive ? 2 : 1)) + (isProgressive ? 2 : 1);
-                merges[0] = { s: { r: 0, c: 0 }, e: { r: 0, c: verticalColCount - 1 } };
-                
-                if(dataRows.length > 0) {
-                    let gHeaderArr = [`उपकेंद्र: ${sc}   |   कर्मचारी: ${ename}   |   महिना: ${periodText}`];
-                    for(let x=1; x<verticalColCount; x++) gHeaderArr.push("");
-                    sheetData.push(gHeaderArr); merges.push({ s: { r: currentR, c: 0 }, e: { r: currentR, c: verticalColCount - 1 } });
-                    groupHeaderRows.push(currentR); currentR++;
-                }
-
-                let r1 = Array(verticalColCount).fill(""); let r2 = isProgressive ? Array(verticalColCount).fill("") : null;
-                r1[0] = "अ.क्र."; r1[1] = "तपशील / प्रश्न";
-                if(isProgressive) { merges.push({ s: { r: currentR, c: 0 }, e: { r: currentR + 1, c: 0 } }); merges.push({ s: { r: currentR, c: 1 }, e: { r: currentR + 1, c: 1 } }); }
-
-                let cIndex = 2;
-                gRows.forEach(row => {
-                    r1[cIndex] = row[villageIdx] || "Unknown";
-                    if(isProgressive) { merges.push({ s: { r: currentR, c: cIndex }, e: { r: currentR, c: cIndex + 1 } }); r2[cIndex] = "मासिक"; r2[cIndex+1] = "प्रगत"; cIndex += 2; } 
-                    else { cIndex += 1; }
-                });
-
-                r1[cIndex] = "एकूण";
-                if(isProgressive) { merges.push({ s: { r: currentR, c: cIndex }, e: { r: currentR, c: cIndex + 1 } }); r2[cIndex] = "मासिक"; r2[cIndex+1] = "प्रगत"; }
-
-                sheetData.push(r1); headerRowIndices.push(currentR); currentR++;
-                if(isProgressive) { sheetData.push(r2); headerRowIndices.push(currentR); currentR++; }
-
-                if(gRows.length === 0) {
-                    let nilRow = Array(verticalColCount).fill(""); nilRow[0] = "निरंक (Nil)";
-                    sheetData.push(nilRow); merges.push({ s: { r: currentR, c: 0 }, e: { r: currentR, c: verticalColCount - 1 } }); currentR++;
-                } else {
-                    baseVariables.forEach((v, vIndex) => {
-                        let rowData = Array(verticalColCount).fill("");
-                        rowData[0] = vIndex + 1; rowData[1] = String(v.name).trim();
-                        let cc = 2; let rowTotalM = 0; let rowTotalP = 0;
-                        gRows.forEach(row => {
-                            let valM = row[v.idxM]; let mObj = (typeof valM === 'object' && valM !== null) ? valM.M : valM;
-                            rowData[cc] = mObj !== undefined && mObj !== "" ? mObj : "-"; if(!isNaN(parseFloat(mObj))) rowTotalM += parseFloat(mObj); cc++;
-                            if(isProgressive) { let pObj = (typeof valM === 'object' && valM !== null) ? valM.P : valM; rowData[cc] = pObj !== undefined && pObj !== "" ? pObj : "-"; if(!isNaN(parseFloat(pObj))) rowTotalP += parseFloat(pObj); cc++; }
-                        });
-                        rowData[cc] = rowTotalM; cc++;
-                        if(isProgressive) rowData[cc] = rowTotalP;
-                        sheetData.push(rowData); currentR++;
-                    });
-                }
-            } else {
-                let h1Arr = [], h2Arr = [], h3Arr = [];
-                showIndices.forEach(idx => {
-                    let parts = headers[idx].split(" - "); h1Arr.push(parts[0] ? parts[0].trim() : "");
-                    if(parts.length === 2) { h2Arr.push(parts[1].trim()); h3Arr.push(""); } 
-                    else if(parts.length >= 3) { h2Arr.push(parts[1].trim()); h3Arr.push(parts.slice(2).join(" - ").trim()); } 
-                    else { h2Arr.push(""); h3Arr.push(""); }
-                });
-
-                let maxDepth = 1; if(h2Arr.some(h => h !== "")) maxDepth = 2; if(h3Arr.some(h => h !== "")) maxDepth = 3;
-                let tree = [];
-                for(let c=0; c<h1Arr.length; c++) {
-                    let h1 = h1Arr[c], h2 = h2Arr[c], h3 = h3Arr[c];
-                    let last1 = tree.length > 0 ? tree[tree.length-1] : null;
-                    if(last1 && last1.label === h1 && h1 !== "") {
-                        let last2 = last1.children.length > 0 ? last1.children[last1.children.length-1] : null;
-                        if(last2 && last2.label === h2 && h2 !== "") { last2.children.push({label: h3, colspan: 1}); last2.colspan++; } 
-                        else { last1.children.push({label: h2, colspan: 1, children: h3 !== "" ? [{label: h3, colspan: 1}] : []}); }
-                        last1.colspan++;
-                    } else { tree.push({label: h1, colspan: 1, children: h2 !== "" ? [{label: h2, colspan: 1, children: h3 !== "" ? [{label: h3, colspan: 1}] : []}] : []}); }
-                }
-
-                colCount = showIndices.length + (isList ? 3 : 2); 
-                merges[0] = { s: { r: 0, c: 0 }, e: { r: 0, c: colCount - 1 } };
-
-                if(dataRows.length > 0) {
-                    let gHeaderArr = [`उपकेंद्र: ${sc}   |   कर्मचारी: ${ename}   |   महिना: ${periodText}`];
-                    for(let x=1; x<colCount; x++) gHeaderArr.push("");
-                    sheetData.push(gHeaderArr); merges.push({ s: { r: currentR, c: 0 }, e: { r: currentR, c: colCount - 1 } });
-                    groupHeaderRows.push(currentR); currentR++;
-                }
-
-                let headerRow1 = Array(colCount).fill(""); let headerRow2 = Array(colCount).fill(""); let headerRow3 = Array(colCount).fill("");
-                let cOffset = 0;
-                headerRow1[cOffset] = "अ.क्र."; merges.push({ s: { r: currentR, c: cOffset }, e: { r: currentR + maxDepth - 1, c: cOffset } }); cOffset++;
-                if(isList) { headerRow1[cOffset] = "उपकेंद्र"; merges.push({ s: { r: currentR, c: cOffset }, e: { r: currentR + maxDepth - 1, c: cOffset } }); cOffset++; }
-                headerRow1[cOffset] = "गाव"; merges.push({ s: { r: currentR, c: cOffset }, e: { r: currentR + maxDepth - 1, c: cOffset } }); cOffset++;
-                
-                tree.forEach(n1 => {
-                    headerRow1[cOffset] = n1.label; let rs1 = n1.children.length === 0 ? maxDepth : 1;
-                    if(n1.colspan > 1 || rs1 > 1) merges.push({ s: { r: currentR, c: cOffset }, e: { r: currentR + rs1 - 1, c: cOffset + n1.colspan - 1 } });
-                    let cOffset2 = cOffset;
-                    n1.children.forEach(n2 => {
-                        headerRow2[cOffset2] = n2.label; let rs2 = n2.children.length === 0 ? (maxDepth - 1) : 1;
-                        if(n2.colspan > 1 || rs2 > 1) merges.push({ s: { r: currentR + 1, c: cOffset2 }, e: { r: currentR + 1 + rs2 - 1, c: cOffset2 + n2.colspan - 1 } });
-                        let cOffset3 = cOffset2;
-                        n2.children.forEach(n3 => { headerRow3[cOffset3] = n3.label; cOffset3++; });
-                        cOffset2 += n2.colspan;
-                    });
-                    cOffset += n1.colspan;
-                });
-
-                sheetData.push(headerRow1); headerRowIndices.push(currentR);
-                if(maxDepth >= 2) { sheetData.push(headerRow2); headerRowIndices.push(currentR+1); }
-                if(maxDepth === 3) { sheetData.push(headerRow3); headerRowIndices.push(currentR+2); }
-                currentR += maxDepth;
-
-                if(gRows.length === 0) {
-                    let nilRow = Array(colCount).fill(""); nilRow[0] = "निरंक (Nil)";
-                    sheetData.push(nilRow); merges.push({ s: { r: currentR, c: 0 }, e: { r: currentR, c: colCount - 1 } }); currentR++;
-                } else {
-                    gRows.forEach((row, i) => {
-                        let rowData = [i+1];
-                        if(isList) { rowData.push(subCenterIdx > -1 ? row[subCenterIdx] : "-"); }
-                        rowData.push(row[villageIdx] || "-");
-                        showIndices.forEach(idx => { 
-                            let cellValue = row[idx] !== undefined && row[idx] !== "" ? String(row[idx]) : "-";
-                            if (/^\d{4}-\d{2}-\d{2}/.test(cellValue)) { let dParts = cellValue.split('T')[0].split('-'); cellValue = `${dParts[2]}-${dParts[1]}-${dParts[0]}`; }
-                            rowData.push(cellValue);
-                        });
-                        sheetData.push(rowData); currentR++;
-                    });
-
-                    if(isStats && gRows.length > 0) {
-                        let pseudoData = [headers].concat(gRows); let { totals, isNumericCol } = getTotalsRow(pseudoData, headers, showIndices);
-                        let totalRow = ["एकूण", ""]; if(isList) totalRow.push(""); 
-                        merges.push({ s: { r: currentR, c: 0 }, e: { r: currentR, c: isList ? 2 : 1 } });
-                        showIndices.forEach(idx => { if(isNumericCol[idx]) totalRow.push(totals[idx]); else totalRow.push("-"); });
-                        sheetData.push(totalRow); headerRowIndices.push(currentR); currentR++;
-                    }
-                }
-            }
-            sheetData.push([]); currentR++;
+        let sheetData = []; 
+        let groupNameText = groupType === "SubCenter" ? "उपकेंद्रनिहाय बेरीज" : "गावनिहाय";
+        sheetData.push([`${rep.formName} अहवाल (${groupNameText})`]); 
+        
+        // 🟢 एक्सेलमध्ये हेडर रो टाकणे (जर उपकेंद्रनिहाय असेल तर "गाव" च्या जागी "उपकेंद्र" दाखवणे)
+        let modifiedHeaders = [...headers];
+        if(groupType === "SubCenter" && villageIdx > -1) {
+            modifiedHeaders[villageIdx] = "उपकेंद्र";
+        }
+        sheetData.push(modifiedHeaders);
+        
+        dataRows.forEach(r => {
+            let cleanRow = r.map((v, cIdx) => {
+                if(groupType === "SubCenter" && cIdx === villageIdx) return r[subCenterIdx]; // गावाच्या रकान्यात उपकेंद्राचे नाव टाकणे
+                return (typeof v === 'object' && v !== null) ? `${v.M} (M) / ${v.P} (P)` : v;
+            });
+            sheetData.push(cleanRow);
         });
 
-        let ws = XLSX.utils.aoa_to_sheet(sheetData); ws["!merges"] = merges;
+        // 🟢 एक्सेलची डिझाईन आणि स्टायलिंग (Styling)
+        let ws = XLSX.utils.aoa_to_sheet(sheetData);
+        let merges = [{ s: { r: 0, c: 0 }, e: { r: 0, c: showIndices.length + 1 } }];
+        ws["!merges"] = merges;
+
         for(let R=0; R<sheetData.length; R++) {
-            for(let C=0; C<200; C++) { 
-                let cellRef = XLSX.utils.encode_cell({r: R, c: C}); if(!ws[cellRef]) continue;
+            for(let C=0; C<modifiedHeaders.length; C++) { 
+                let cellRef = XLSX.utils.encode_cell({r: R, c: C}); 
+                if(!ws[cellRef]) continue;
+                
                 let cellStyle = { font: { name: "Arial", sz: 11, color: { rgb: "000000" } }, alignment: { vertical: "center", horizontal: "center", wrapText: true } };
-                if(R === 0) { cellStyle.fill = { fgColor: { rgb: "00705A" } }; cellStyle.font = { name: "Arial", sz: 16, bold: true, color: { rgb: "FFFFFF" } }; } 
-                else if(groupHeaderRows.includes(R)) { cellStyle.fill = { fgColor: { rgb: "CDE4EC" } }; cellStyle.font = { name: "Arial", sz: 12, bold: true, color: { rgb: "0056B3" } }; cellStyle.alignment = { vertical: "center", horizontal: "left", wrapText: true }; cellStyle.border = { top: { style: "medium", color: { rgb: "0056B3" } }, bottom: { style: "medium", color: { rgb: "0056B3" } } }; } 
-                else if(headerRowIndices.includes(R)) { cellStyle.fill = { fgColor: { rgb: "F4B400" } }; cellStyle.font = { name: "Arial", sz: 11, bold: true, color: { rgb: "000000" } }; cellStyle.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } }; } 
-                else if(sheetData[R][0] !== "") { if(sheetData[R][0] === "निरंक (Nil)") { cellStyle.font = { name: "Arial", sz: 12, bold: true, color: { rgb: "FF0000" } }; } else { cellStyle.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } }; } }
+                if(R === 0) { 
+                    cellStyle.fill = { fgColor: { rgb: "00705A" } }; 
+                    cellStyle.font = { name: "Arial", sz: 14, bold: true, color: { rgb: "FFFFFF" } }; 
+                } else if(R === 1) { 
+                    cellStyle.fill = { fgColor: { rgb: "F4B400" } }; 
+                    cellStyle.font = { name: "Arial", sz: 11, bold: true, color: { rgb: "000000" } }; 
+                    cellStyle.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } }; 
+                } else { 
+                    cellStyle.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } }; 
+                }
                 ws[cellRef].s = cellStyle;
             }
         }
-        let wscols = [{ wch: 10 }, { wch: 25 }]; for(let c=2; c<50; c++) wscols.push({ wch: 12 }); ws["!cols"] = wscols;
-        let safeSheetName = rep.formName.replace(/[\\\/\?\*\[\]\:]/g, "").substring(0, 31); if(!safeSheetName) safeSheetName = "Sheet" + (index + 1);
+
+        let wscols = [{ wch: 10 }, { wch: 25 }]; 
+        for(let c=2; c<modifiedHeaders.length; c++) wscols.push({ wch: 15 }); 
+        ws["!cols"] = wscols;
+
+        let safeSheetName = rep.formName.replace(/[\\\/\?\*\[\]\:]/g, "").substring(0, 31); 
+        if(!safeSheetName) safeSheetName = "Sheet" + (index + 1);
         XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
     });
-    let fileName = `मासिक_अहवाल_${user.subcenter}_${periodText}.xlsx`; XLSX.writeFile(wb, fileName);
-}
+    
+    XLSX.writeFile(wb, `मासिक_अहवाल_${groupType}_${periodText}.xlsx`);
+}}
