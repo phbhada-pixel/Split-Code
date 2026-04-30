@@ -1,4 +1,4 @@
-const CACHE_NAME = 'phc-advance-cache-v8';
+const CACHE_NAME = 'phc-advance-cache-v9';
 const urlsToCache = [
   '/',
   '/index.html',
