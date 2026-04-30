@@ -394,6 +394,7 @@ function renderMultipleTables(reports, month, year) {
 }
 
 // 🟢 MODIFIED: downloadConsolidatedExcel with Security for Aggregation
+// 🟢 MODIFIED: downloadConsolidatedExcel with Exact Vertical Progressive Format
 function downloadConsolidatedExcel() {
     if(currentReports.length === 0) return;
     
@@ -420,7 +421,11 @@ function downloadConsolidatedExcel() {
         let villageIdx = headers.indexOf("गाव");
         let dataRows = rep.data.slice(1);
         const formObj = masterData.forms.find(x => x.FormName === rep.formName);
-        const isList = formObj && String(formObj.FormType).trim().includes('List');
+        const formType = formObj ? String(formObj.FormType).trim() : "";
+        const isStats = formType.includes('Stats');
+        const isProgressive = formType.includes('ProgressiveStats');
+        const isVertical = formType.includes('Vertical');
+        const isList = formType.includes('List');
 
         // 🟢 उपकेंद्रनिहाय बेरीज करण्याचे लॉजिक (SubCenter Aggregation)
         if (groupType === "SubCenter" && !isList) {
@@ -430,6 +435,8 @@ function downloadConsolidatedExcel() {
                 if (!aggregated[sc]) {
                     aggregated[sc] = Array(headers.length).fill(0);
                     headers.forEach((h, idx) => { if (!showIndices.includes(idx)) aggregated[sc][idx] = row[idx]; });
+                    if (villageIdx > -1) aggregated[sc][villageIdx] = "एकत्रित (All Villages)";
+                    if (subCenterIdx > -1) aggregated[sc][subCenterIdx] = sc;
                 }
                 showIndices.forEach(idx => {
                     let val = row[idx];
@@ -450,28 +457,123 @@ function downloadConsolidatedExcel() {
         let sheetData = []; 
         let groupNameText = groupType === "SubCenter" ? "उपकेंद्रनिहाय बेरीज" : "गावनिहाय";
         sheetData.push([`${rep.formName} अहवाल (${groupNameText})`]); 
-        
-        // 🟢 एक्सेलमध्ये हेडर रो टाकणे
-        let modifiedHeaders = [...headers];
-        if(groupType === "SubCenter" && villageIdx > -1) {
-            modifiedHeaders[villageIdx] = "उपकेंद्र";
-        }
-        sheetData.push(modifiedHeaders);
-        
-        dataRows.forEach(r => {
-            let cleanRow = r.map((v, cIdx) => {
-                if(groupType === "SubCenter" && cIdx === villageIdx) return r[subCenterIdx]; 
-                return (typeof v === 'object' && v !== null) ? `${v.M} (M) / ${v.P} (P)` : v;
-            });
-            sheetData.push(cleanRow);
-        });
+        sheetData.push([]); // रिकामी ओळ
 
+        // 🟢 उभा (Vertical) अहवाल डिझाईन (स्क्रीनशॉटमध्ये दिल्याप्रमाणे)
+        if (isVertical) {
+            let verticalHeaders = ["अ.क्र.", "तपशील / प्रश्न"];
+            dataRows.forEach(r => {
+                let name = groupType === "SubCenter" ? r[subCenterIdx] : (r[villageIdx] || "-");
+                if (isProgressive) {
+                    verticalHeaders.push(`${name}/मासिक`);
+                    verticalHeaders.push(`${name}/प्रगत`);
+                } else {
+                    verticalHeaders.push(name);
+                }
+            });
+            if (isProgressive) {
+                verticalHeaders.push("एकूण/मासिक");
+                verticalHeaders.push("एकूण/प्रगत");
+            } else {
+                verticalHeaders.push("एकूण");
+            }
+            sheetData.push(verticalHeaders);
+
+            showIndices.forEach((idx, vIndex) => {
+                let rowData = [vIndex + 1, headers[idx]];
+                let rowTotalM = 0;
+                let rowTotalP = 0;
+                dataRows.forEach(r => {
+                    let val = r[idx];
+                    let m = (typeof val === 'object' && val !== null) ? val.M : val;
+                    rowData.push(m !== undefined && m !== "" ? m : 0);
+                    if (!isNaN(parseFloat(m))) rowTotalM += parseFloat(m);
+
+                    if (isProgressive) {
+                        let p = (typeof val === 'object' && val !== null) ? val.P : val;
+                        rowData.push(p !== undefined && p !== "" ? p : 0);
+                        if (!isNaN(parseFloat(p))) rowTotalP += parseFloat(p);
+                    }
+                });
+                rowData.push(rowTotalM);
+                if (isProgressive) rowData.push(rowTotalP);
+                sheetData.push(rowData);
+            });
+
+        } else {
+            // 🟢 आडवा (Horizontal) अहवाल डिझाईन
+            let modifiedHeaders = ["अ.क्र."];
+            if (isList) {
+                if (subCenterIdx > -1) modifiedHeaders.push("उपकेंद्र");
+                if (villageIdx > -1) modifiedHeaders.push("गाव");
+            } else {
+                if (groupType === "SubCenter") modifiedHeaders.push("उपकेंद्र");
+                else modifiedHeaders.push("गाव");
+            }
+
+            showIndices.forEach(idx => modifiedHeaders.push(headers[idx]));
+            sheetData.push(modifiedHeaders);
+
+            dataRows.forEach((r, rowIndex) => {
+                let rowData = [rowIndex + 1];
+                if (isList) {
+                    if (subCenterIdx > -1) rowData.push(r[subCenterIdx] || "-");
+                    if (villageIdx > -1) rowData.push(r[villageIdx] || "-");
+                } else {
+                    if (groupType === "SubCenter") rowData.push(r[subCenterIdx] || "-");
+                    else rowData.push(r[villageIdx] || "-");
+                }
+
+                showIndices.forEach(colIdx => {
+                    let v = r[colIdx];
+                    let valStr = (typeof v === 'object' && v !== null) ? `${v.M} (M) / ${v.P} (P)` : v;
+                    rowData.push(valStr !== undefined && valStr !== "" ? valStr : "-");
+                });
+                sheetData.push(rowData);
+            });
+
+            // 🟢 आडव्या (Horizontal) अहवालासाठी एकूण बेरीज
+            if (isStats && dataRows.length > 0) {
+                let totalRow = ["एकूण"];
+                if (isList) {
+                    if (subCenterIdx > -1) totalRow.push("-");
+                    if (villageIdx > -1) totalRow.push("-");
+                } else {
+                    totalRow.push("-");
+                }
+
+                showIndices.forEach(idx => {
+                    let colSumM = 0; let colSumP = 0; let isNum = false;
+                    dataRows.forEach(r => {
+                        let v = r[idx];
+                        if (typeof v === 'object' && v !== null) {
+                            isNum = true;
+                            colSumM += parseFloat(v.M || 0);
+                            colSumP += parseFloat(v.P || 0);
+                        } else {
+                            let n = parseFloat(v);
+                            if (!isNaN(n)) { isNum = true; colSumM += n; }
+                        }
+                    });
+                    if (isNum) {
+                        if (isProgressive) totalRow.push(`${colSumM} (M) / ${colSumP} (P)`);
+                        else totalRow.push(colSumM);
+                    } else {
+                        totalRow.push("-");
+                    }
+                });
+                sheetData.push(totalRow);
+            }
+        }
+
+        // 🟢 एक्सेल डिझाईन (Styling)
         let ws = XLSX.utils.aoa_to_sheet(sheetData);
-        let merges = [{ s: { r: 0, c: 0 }, e: { r: 0, c: showIndices.length + 1 } }];
+        let colCount = sheetData[2].length;
+        let merges = [{ s: { r: 0, c: 0 }, e: { r: 0, c: colCount - 1 } }];
         ws["!merges"] = merges;
 
         for(let R=0; R<sheetData.length; R++) {
-            for(let C=0; C<modifiedHeaders.length; C++) { 
+            for(let C=0; C<colCount; C++) { 
                 let cellRef = XLSX.utils.encode_cell({r: R, c: C}); 
                 if(!ws[cellRef]) continue;
                 
@@ -479,19 +581,29 @@ function downloadConsolidatedExcel() {
                 if(R === 0) { 
                     cellStyle.fill = { fgColor: { rgb: "00705A" } }; 
                     cellStyle.font = { name: "Arial", sz: 14, bold: true, color: { rgb: "FFFFFF" } }; 
-                } else if(R === 1) { 
+                } else if(R === 2) { 
                     cellStyle.fill = { fgColor: { rgb: "F4B400" } }; 
                     cellStyle.font = { name: "Arial", sz: 11, bold: true, color: { rgb: "000000" } }; 
                     cellStyle.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } }; 
                 } else { 
                     cellStyle.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } }; 
+                    if (isVertical && C === 1) {
+                        cellStyle.alignment.horizontal = "left"; // प्रश्न डाव्या बाजूला ठेवण्यासाठी
+                    }
                 }
                 ws[cellRef].s = cellStyle;
             }
         }
 
-        let wscols = [{ wch: 10 }, { wch: 25 }]; 
-        for(let c=2; c<modifiedHeaders.length; c++) wscols.push({ wch: 15 }); 
+        let wscols = [{ wch: 8 }]; 
+        if (isVertical) {
+            wscols.push({ wch: 45 }); // प्रश्नांसाठी मोठा कॉलम
+            for(let c=2; c<colCount; c++) wscols.push({ wch: 15 });
+        } else {
+            wscols.push({ wch: 18 }); 
+            if(isList && subCenterIdx > -1 && villageIdx > -1) wscols.push({ wch: 18 });
+            for(let c=wscols.length; c<colCount; c++) wscols.push({ wch: 15 });
+        }
         ws["!cols"] = wscols;
 
         let safeSheetName = rep.formName.replace(/[\\\/\?\*\[\]\:]/g, "").substring(0, 31); 
