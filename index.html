@@ -109,14 +109,28 @@
 
             <div id="reportsSection" class="hidden">
                 <h3>मासिक अहवाल डाउनलोड करा</h3>
-                <div class="row-flex" id="adminRoleFilterDiv" style="margin-bottom: 15px; display: none; background: #e8f4f8; padding: 10px; border-radius: 8px; border: 1px solid #bce8f1;">
-                    <div style="flex: 1;"><label style="font-weight:bold; color:#31708f;">कर्मचाऱ्याचे पद (फक्त ॲडमिनसाठी):</label><select id="reportRoleFilter">
-                        <option value="सर्व">सर्व कर्मचारी (All Combined)</option>
-                        <option value="ANM">फक्त ANM चा डेटा</option>
-                        <option value="MPW">फक्त MPW चा डेटा</option>
-                        <option value="CHO">फक्त CHO चा डेटा</option>
-                    </select></div>
+                
+                <!-- 🟢 ॲडमिनसाठी खास लपवलेला (Hidden) डॅशबोर्ड -->
+                <div class="row-flex" id="adminRoleFilterDiv" style="margin-bottom: 15px; display: none; background: #e8f4f8; padding: 15px; border-radius: 8px; border: 1px solid #bce8f1; gap: 15px; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 200px;">
+                        <label style="font-weight:bold; color:#31708f;">कर्मचाऱ्याचे पद फिल्टर:</label>
+                        <select id="reportRoleFilter" style="border: 1px solid #0056b3;">
+                            <option value="सर्व">सर्व कर्मचारी (All Combined)</option>
+                            <option value="ANM">फक्त ANM चा डेटा</option>
+                            <option value="MPW">फक्त MPW चा डेटा</option>
+                            <option value="CHO">फक्त CHO चा डेटा</option>
+                        </select>
+                    </div>
+                    <!-- 🟢 अहवाल गट निवड (फक्त ॲडमिनला दिसेल) -->
+                    <div style="flex: 1; min-width: 200px;">
+                        <label style="font-weight:bold; color:#31708f;">अहवाल गट (Grouping):</label>
+                        <select id="reportGroupFilter" style="border: 1px solid #0056b3;">
+                            <option value="Village">गावनिहाय (Village Wise)</option>
+                            <option value="SubCenter">उपकेंद्रनिहाय बेरीज (Sub-Center Wise)</option>
+                        </select>
+                    </div>
                 </div>
+
                 <div class="row-flex" style="margin-bottom: 15px;">
                     <div style="flex: 2;"><label>अहवाल निवडा:</label><select id="reportFormSelect"></select></div>
                 </div>
@@ -183,7 +197,7 @@
                     </div>
 
                     <div id="fieldsList"></div>
-                    <button onclick="addField()" style="background:#e9ecef; color:#333; font-weight:bold; border:1px solid #ccc;">+ मुख्य प्रश्न जोडा</button>
+                    <button onclick="addField()" style="background:#e9ecef; color:#333; font-weight:bold; border:1px solid #ccc;">+ मुख्य प्रश्न जो ব্যক্ত करा</button>
                     <button id="mainActionBtn" class="btn-primary" onclick="saveFullForm()" style="margin-top:15px;">फॉर्म सेव्ह करा</button>
                 </div>
             </div>
