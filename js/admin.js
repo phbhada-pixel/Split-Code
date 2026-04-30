@@ -1,4 +1,4 @@
-// 🟢 JS/ADMIN.JS - प्रगत लॉजिक (Formula, Condition, Range) सह
+// 🟢 JS/ADMIN.JS - प्रगत लॉजिक आणि 'मोबाईल नंबर' फील्डसह
 
 function openNewFormBuilder() {
     document.getElementById('formBuilder').classList.remove('hidden');
@@ -83,7 +83,6 @@ function loadFormForEdit(f) {
     else { structure.forEach(field => addFieldToUI(field)); }
 }
 
-// 🟢 प्रगत सेटिंग्ज लपवण्यासाठी/दाखवण्यासाठी फंक्शन
 function toggleAdv(btn) {
     let div = btn.nextElementSibling;
     if(div.style.display === "none") {
@@ -120,6 +119,7 @@ function addFieldToUI(fieldData = null) {
                 onchange="this.parentElement.parentElement.querySelector('.add-sub-btn').style.display = (this.value === 'group' ? 'block' : 'none'); if(this.value !== 'group') this.parentElement.parentElement.querySelector('.sub-fields').innerHTML='';">
                 <option value="number" ${selType === 'number' ? 'selected' : ''}>Number (आकडे)</option>
                 <option value="text" ${selType === 'text' ? 'selected' : ''}>Text (अक्षरे)</option>
+                <option value="mobile" ${selType === 'mobile' ? 'selected' : ''}>Mobile (१० अंकी नंबर)</option>
                 <option value="dropdown" ${selType === 'dropdown' ? 'selected' : ''}>Dropdown (यादी)</option>
                 <option value="group" ${selType === 'group' ? 'selected' : ''}>Group (सब-प्रश्न गट)</option>
             </select>
@@ -128,11 +128,10 @@ function addFieldToUI(fieldData = null) {
             </label>
         </div>
 
-        <!-- 🟢 Advanced Logic Section -->
         <button type="button" onclick="toggleAdv(this)" style="margin-top:10px; background:none; border:none; color:#0056b3; font-weight:bold; cursor:pointer; font-size:13px; text-align:left; padding:0;">⚙️ प्रगत सेटिंग्ज (Formula, Default Value...)</button>
         <div class="adv-settings" style="display:none; background:#f8f9fa; padding:10px; border:1px dashed #0056b3; border-radius:4px; margin-top:5px; flex-direction:column; gap:8px;">
             <div><label style="font-size:12px; font-weight:bold;">Default Value (आपोआप येणारी किंमत):</label> <input type="text" class="f-def" placeholder="उदा. 0 किंवा निरंक" value="${fieldData && fieldData.defaultValue ? fieldData.defaultValue : ''}" style="padding:6px; width:100%; box-sizing:border-box; border:1px solid #ccc;"></div>
-            <div><label style="font-size:12px; font-weight:bold;">Formula (गणितीय सूत्र +, -, *, /):</label> <input type="text" class="f-form" placeholder="उदा. f_1 + f_2 किंवा (f_1/f_2)*100" value="${fieldData && fieldData.formula ? fieldData.formula : ''}" style="padding:6px; width:100%; box-sizing:border-box; border:1px solid #ccc;"></div>
+            <div><label style="font-size:12px; font-weight:bold;">Formula (गणितीय सूत्र +, -, *, /):</label> <input type="text" class="f-form" placeholder="उदा. f_1 + f_2" value="${fieldData && fieldData.formula ? fieldData.formula : ''}" style="padding:6px; width:100%; box-sizing:border-box; border:1px solid #ccc;"></div>
             <div><label style="font-size:12px; font-weight:bold;">Condition (अटी आणि रंग):</label> <input type="text" class="f-cond" placeholder="उदा. f_1>10:'[red]High'" value="${fieldData && fieldData.dependency ? fieldData.dependency : ''}" style="padding:6px; width:100%; box-sizing:border-box; border:1px solid #ccc;"></div>
             <div><label style="font-size:12px; font-weight:bold;">Range (मर्यादा):</label> <input type="text" class="f-range" placeholder="उदा. 0-100 किंवा <=50" value="${fieldData && fieldData.range ? fieldData.range : ''}" style="padding:6px; width:100%; box-sizing:border-box; border:1px solid #ccc;"></div>
         </div>
@@ -171,13 +170,13 @@ function addSubFieldToUI(parentDiv, sfData = null) {
                 onchange="this.parentElement.parentElement.querySelector('.add-sub-sub-btn').style.display = (this.value === 'group' ? 'block' : 'none'); if(this.value !== 'group') this.parentElement.parentElement.querySelector('.sub-sub-fields').innerHTML='';">
                 <option value="number" ${selType === 'number' ? 'selected' : ''}>Number (आकडे)</option>
                 <option value="text" ${selType === 'text' ? 'selected' : ''}>Text (अक्षरे)</option>
+                <option value="mobile" ${selType === 'mobile' ? 'selected' : ''}>Mobile (१० अंकी नंबर)</option>
                 <option value="dropdown" ${selType === 'dropdown' ? 'selected' : ''}>Dropdown (यादी)</option>
                 <option value="group" ${selType === 'group' ? 'selected' : ''}>Group (3rd Level)</option>
             </select>
             <label style="font-size:13px; color:#d35400; margin-top:3px;"><input type="checkbox" class="sf-req" ${isReqChecked}> आवश्यक आहे (*)</label>
         </div>
 
-        <!-- 🟢 Sub-Field Advanced Logic Section -->
         <button type="button" onclick="toggleAdv(this)" style="margin-top:8px; background:none; border:none; color:#0056b3; font-weight:bold; cursor:pointer; font-size:12px; text-align:left; padding:0;">⚙️ प्रगत सेटिंग्ज</button>
         <div class="adv-settings" style="display:none; background:#e9ecef; padding:8px; border:1px dashed #6c757d; border-radius:4px; margin-top:5px; flex-direction:column; gap:5px;">
             <input type="text" class="sf-def" placeholder="Default Value" value="${sfData && sfData.defaultValue ? sfData.defaultValue : ''}" style="padding:5px; border:1px solid #ccc; font-size:12px;">
@@ -215,13 +214,13 @@ function addSubSubFieldToUI(parentDiv, ssfData = null) {
                 <button onclick="this.parentElement.parentElement.parentElement.remove()" style="color:#d32f2f; background:none; border:none; font-weight:bold; font-size:16px; margin-left:10px; cursor:pointer;">✖</button>
             </div>
             <select class="ssf-type" style="padding:6px; border:1px solid #aaa; border-radius:4px; font-size:13px;">
-                <option value="number" ${selType === 'number' ? 'selected' : ''}>Number</option>
-                <option value="text" ${selType === 'text' ? 'selected' : ''}>Text</option>
-                <option value="dropdown" ${selType === 'dropdown' ? 'selected' : ''}>Dropdown</option>
+                <option value="number" ${selType === 'number' ? 'selected' : ''}>Number (आकडे)</option>
+                <option value="text" ${selType === 'text' ? 'selected' : ''}>Text (अक्षरे)</option>
+                <option value="mobile" ${selType === 'mobile' ? 'selected' : ''}>Mobile (१० अंकी नंबर)</option>
+                <option value="dropdown" ${selType === 'dropdown' ? 'selected' : ''}>Dropdown (यादी)</option>
             </select>
             <label style="font-size:12px; color:#d35400;"><input type="checkbox" class="ssf-req" ${isReqChecked}> सक्तीचे (*)</label>
 
-            <!-- 🟢 Sub-Sub-Field Advanced Logic -->
             <button type="button" onclick="toggleAdv(this)" style="margin-top:2px; background:none; border:none; color:#0056b3; font-weight:bold; cursor:pointer; font-size:11px; text-align:left; padding:0;">⚙️ प्रगत सेटिंग्ज</button>
             <div class="adv-settings" style="display:none; background:#fdfdfe; padding:6px; border:1px dashed #ccc; border-radius:4px; flex-direction:column; gap:4px;">
                 <input type="text" class="ssf-def" placeholder="Default Value" value="${ssfData && ssfData.defaultValue ? ssfData.defaultValue : ''}" style="padding:4px; border:1px solid #ccc; font-size:11px;">
