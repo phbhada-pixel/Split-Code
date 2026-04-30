@@ -1,4 +1,4 @@
-// 🟢 JS/ADMIN.JS - पूर्ण फाईल (Google Apps Script साठी)
+// 🟢 JS/ADMIN.JS - मोबाईल फ्रेंडली (Google Apps Script साठी)
 
 function openNewFormBuilder() {
     document.getElementById('formBuilder').classList.remove('hidden');
@@ -30,7 +30,8 @@ function toggleRoles(checkbox) {
     else { rolesDiv.style.display = "block"; }
 }
 
-function renderExistingFormsList() {
+// 🟢 दुरुस्ती: जुने नाव परत आणले जेणेकरून 'config.js' शी लिंक होईल
+function renderFormsListForEdit() {
     const area = document.getElementById('formsEditList');
     if(!area) return;
     area.innerHTML = "";
@@ -83,12 +84,13 @@ function loadFormForEdit(f) {
     else { structure.forEach(field => addFieldToUI(field)); }
 }
 
+// 🟢 दुरुस्ती: मोबाईलसाठी उभी मांडणी (Stacked Layout)
 function addFieldToUI(fieldData = null) {
     const list = document.getElementById('fieldsList');
     const fDiv = document.createElement('div');
     fDiv.className = "field-builder";
     fDiv.style.border = "2px solid #17a2b8";
-    fDiv.style.padding = "10px";
+    fDiv.style.padding = "15px";
     fDiv.style.marginBottom = "15px";
     fDiv.style.borderRadius = "8px";
     fDiv.style.background = "#fff";
@@ -97,26 +99,32 @@ function addFieldToUI(fieldData = null) {
     let selType = fieldData ? fieldData.type : 'number';
 
     fDiv.innerHTML = `
-        <div style="display:flex; gap:10px; align-items:center;">
-            <button onclick="this.parentElement.parentElement.remove()" style="color:red; font-weight:bold; background:none; border:none; font-size:18px; cursor:pointer;" title="प्रश्न काढा">✖</button>
-            <input type="text" class="f-label" placeholder="मुख्य प्रश्नाचे नाव (उदा. गरोदर माता)" value="${fieldData ? fieldData.label : ''}" style="flex:2; padding:8px; border:1px solid #ccc; border-radius:4px; font-weight:bold;">
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #eee; padding-bottom:8px; margin-bottom:12px;">
+            <label style="font-weight:bold; color:#17a2b8; font-size:16px;">मुख्य प्रश्न</label>
+            <button onclick="this.parentElement.parentElement.remove()" style="color:white; background:#dc3545; border:none; padding:4px 8px; border-radius:4px; font-weight:bold; cursor:pointer;" title="प्रश्न काढा">✖ काढून टाका</button>
+        </div>
+        
+        <div style="display:flex; flex-direction:column; gap:10px;">
+            <input type="text" class="f-label" placeholder="प्रश्नाचे नाव (उदा. गरोदर माता)" value="${fieldData ? fieldData.label : ''}" style="padding:10px; border:1px solid #ccc; border-radius:4px; font-weight:bold; width:100%; box-sizing:border-box;">
             
-            <select class="f-type" style="flex:1; padding:8px; border:1px solid #ccc; border-radius:4px;" 
+            <select class="f-type" style="padding:10px; border:1px solid #ccc; border-radius:4px; width:100%; box-sizing:border-box;" 
                 onchange="this.parentElement.parentElement.querySelector('.add-sub-btn').style.display = (this.value === 'group' ? 'block' : 'none'); if(this.value !== 'group') this.parentElement.parentElement.querySelector('.sub-fields').innerHTML='';">
                 <option value="number" ${selType === 'number' ? 'selected' : ''}>Number (आकडे)</option>
                 <option value="text" ${selType === 'text' ? 'selected' : ''}>Text (अक्षरे)</option>
                 <option value="dropdown" ${selType === 'dropdown' ? 'selected' : ''}>Dropdown (यादी)</option>
                 <option value="group" ${selType === 'group' ? 'selected' : ''}>Group (सब-प्रश्न गट)</option>
             </select>
+
+            <label style="font-size:14px; color:#d35400; font-weight:bold; margin-top:5px;">
+                <input type="checkbox" class="f-req" ${isReqChecked} style="transform: scale(1.2); margin-right:8px;"> हा प्रश्न भरणे सक्तीचे (Required) आहे
+            </label>
         </div>
-        <div style="margin-left: 30px; margin-top: 5px;">
-            <label style="font-size:13px; color:#d35400; font-weight:bold;"><input type="checkbox" class="f-req" ${isReqChecked}> हा प्रश्न भरणे सक्तीचे (Required) आहे</label>
-        </div>
-        <div class="sub-fields" style="margin-left:20px; border-left:3px solid #17a2b8; padding-left:15px; margin-top:10px;"></div>
+
+        <div class="sub-fields" style="margin-left:10px; border-left:3px solid #17a2b8; padding-left:10px; margin-top:15px;"></div>
         
         <button type="button" class="add-sub-btn" onclick="addSubField(this.parentElement)" 
-            style="display:${selType === 'group' ? 'block' : 'none'}; margin-left:20px; background:#e0f7fa; border:1px solid #00acc1; color:#00838f; font-weight:bold; padding:6px 12px; margin-top:8px; border-radius:4px; cursor:pointer;">
-            ➕ सब-प्रश्न जोडा
+            style="display:${selType === 'group' ? 'block' : 'none'}; width:100%; background:#e0f7fa; border:1px solid #00acc1; color:#00838f; font-weight:bold; padding:10px; margin-top:12px; border-radius:4px; cursor:pointer;">
+            ➕ या गटात सब-प्रश्न जोडा
         </button>
     `;
     list.appendChild(fDiv);
@@ -131,8 +139,8 @@ function addFieldToUI(fieldData = null) {
 function addSubFieldToUI(parentDiv, sfData = null) {
     const subList = parentDiv.querySelector('.sub-fields');
     const sDiv = document.createElement('div');
-    sDiv.style.marginBottom = "10px";
-    sDiv.style.padding = "8px";
+    sDiv.style.marginBottom = "15px";
+    sDiv.style.padding = "10px";
     sDiv.style.background = "#f4f7f6";
     sDiv.style.border = "1px solid #ced4da";
     sDiv.style.borderRadius = "5px";
@@ -141,26 +149,32 @@ function addSubFieldToUI(parentDiv, sfData = null) {
     let selType = sfData ? sfData.type : 'number';
 
     sDiv.innerHTML = `
-        <div style="display:flex; gap:10px; align-items:center;">
-            <button onclick="this.parentElement.parentElement.remove()" style="color:orange; font-weight:bold; background:none; border:none; font-size:16px; cursor:pointer;">✖</button>
-            <input type="text" class="sf-label" placeholder="सब-प्रश्नाचे नाव (उदा. नोंदणी)" value="${sfData ? sfData.label : ''}" style="flex:2; padding:6px; border:1px solid #bbb; border-radius:4px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #ddd; padding-bottom:5px; margin-bottom:10px;">
+            <label style="font-weight:bold; color:#0056b3; font-size:14px;">सब-प्रश्न</label>
+            <button onclick="this.parentElement.parentElement.remove()" style="color:#d32f2f; background:none; border:none; font-weight:bold; cursor:pointer;">✖ काढा</button>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:8px;">
+            <input type="text" class="sf-label" placeholder="सब-प्रश्नाचे नाव (उदा. नोंदणी)" value="${sfData ? sfData.label : ''}" style="padding:8px; border:1px solid #bbb; border-radius:4px; width:100%; box-sizing:border-box;">
             
-            <select class="sf-type" style="flex:1; padding:6px; border:1px solid #bbb; border-radius:4px;"
+            <select class="sf-type" style="padding:8px; border:1px solid #bbb; border-radius:4px; width:100%; box-sizing:border-box;"
                 onchange="this.parentElement.parentElement.querySelector('.add-sub-sub-btn').style.display = (this.value === 'group' ? 'block' : 'none'); if(this.value !== 'group') this.parentElement.parentElement.querySelector('.sub-sub-fields').innerHTML='';">
-                <option value="number" ${selType === 'number' ? 'selected' : ''}>Number</option>
-                <option value="text" ${selType === 'text' ? 'selected' : ''}>Text</option>
-                <option value="dropdown" ${selType === 'dropdown' ? 'selected' : ''}>Dropdown</option>
+                <option value="number" ${selType === 'number' ? 'selected' : ''}>Number (आकडे)</option>
+                <option value="text" ${selType === 'text' ? 'selected' : ''}>Text (अक्षरे)</option>
+                <option value="dropdown" ${selType === 'dropdown' ? 'selected' : ''}>Dropdown (यादी)</option>
                 <option value="group" ${selType === 'group' ? 'selected' : ''}>Group (3rd Level)</option>
             </select>
+
+            <label style="font-size:13px; color:#d35400; margin-top:3px;">
+                <input type="checkbox" class="sf-req" ${isReqChecked}> आवश्यक आहे (*)
+            </label>
         </div>
-        <div style="margin-left: 25px; margin-top: 3px;">
-            <label style="font-size:12px; color:#d35400;"><input type="checkbox" class="sf-req" ${isReqChecked}> आवश्यक आहे (*)</label>
-        </div>
-        <div class="sub-sub-fields" style="margin-left:20px; border-left:2px dotted #ff9800; padding-left:10px; margin-top:5px;"></div>
+
+        <div class="sub-sub-fields" style="margin-left:10px; border-left:2px dotted #ff9800; padding-left:10px; margin-top:10px;"></div>
         
         <button type="button" class="add-sub-sub-btn" onclick="addSubSubField(this.parentElement)" 
-            style="display:${selType === 'group' ? 'block' : 'none'}; margin-left:20px; background:#fff3e0; border:1px solid #ffb74d; color:#e65100; font-size:11px; padding:4px 8px; margin-top:5px; cursor:pointer; border-radius:4px;">
-            ➕ तिसरी लेव्हल (Sub-Sub) जोडा
+            style="display:${selType === 'group' ? 'block' : 'none'}; width:100%; background:#fff3e0; border:1px solid #ffb74d; color:#e65100; font-size:13px; font-weight:bold; padding:8px; margin-top:10px; cursor:pointer; border-radius:4px;">
+            ➕ तिसरी लेव्हल जोडा
         </button>
     `;
     subList.appendChild(sDiv);
@@ -175,23 +189,31 @@ function addSubFieldToUI(parentDiv, sfData = null) {
 function addSubSubFieldToUI(parentDiv, ssfData = null) {
     const subSubList = parentDiv.querySelector('.sub-sub-fields');
     const ssDiv = document.createElement('div');
-    ssDiv.style.marginBottom = "5px";
+    ssDiv.style.marginBottom = "10px";
+    ssDiv.style.padding = "8px";
+    ssDiv.style.background = "#fff";
+    ssDiv.style.border = "1px solid #eee";
+    ssDiv.style.borderRadius = "4px";
     
     let isReqChecked = (ssfData && ssfData.isRequired) ? "checked" : "";
     let selType = ssfData ? ssfData.type : 'number';
 
     ssDiv.innerHTML = `
-        <div style="display:flex; gap:10px; align-items:center;">
-            <button onclick="this.parentElement.parentElement.remove()" style="color:#d32f2f; font-weight:bold; background:none; border:none; font-size:14px; cursor:pointer;">✖</button>
-            <input type="text" class="ssf-label" placeholder="तिसऱ्या लेव्हलचे नाव (उदा. १२ आठवड्यांच्या आत)" value="${ssfData ? ssfData.label : ''}" style="flex:2; padding:4px; border:1px solid #aaa; border-radius:4px;">
-            <select class="ssf-type" style="flex:1; padding:4px; border:1px solid #aaa; border-radius:4px;">
-                <option value="number" ${selType === 'number' ? 'selected' : ''}>Number</option>
-                <option value="text" ${selType === 'text' ? 'selected' : ''}>Text</option>
-                <option value="dropdown" ${selType === 'dropdown' ? 'selected' : ''}>Dropdown</option>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <input type="text" class="ssf-label" placeholder="तिसरी लेव्हल (उदा. १२ आठवडे)" value="${ssfData ? ssfData.label : ''}" style="flex:1; padding:6px; border:1px solid #aaa; border-radius:4px; font-size:13px;">
+                <button onclick="this.parentElement.parentElement.parentElement.remove()" style="color:#d32f2f; background:none; border:none; font-weight:bold; font-size:16px; margin-left:10px; cursor:pointer;">✖</button>
+            </div>
+            
+            <select class="ssf-type" style="padding:6px; border:1px solid #aaa; border-radius:4px; font-size:13px; width:100%; box-sizing:border-box;">
+                <option value="number" ${selType === 'number' ? 'selected' : ''}>Number (आकडे)</option>
+                <option value="text" ${selType === 'text' ? 'selected' : ''}>Text (अक्षरे)</option>
+                <option value="dropdown" ${selType === 'dropdown' ? 'selected' : ''}>Dropdown (यादी)</option>
             </select>
-        </div>
-        <div style="margin-left: 20px; margin-top: 3px;">
-            <label style="font-size:11px; color:#d35400;"><input type="checkbox" class="ssf-req" ${isReqChecked}> आवश्यक आहे (*)</label>
+            
+            <label style="font-size:12px; color:#d35400;">
+                <input type="checkbox" class="ssf-req" ${isReqChecked}> सक्तीचे (*)
+            </label>
         </div>
     `;
     subSubList.appendChild(ssDiv);
