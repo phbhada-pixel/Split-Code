@@ -1,4 +1,4 @@
-// 🟢 JS/ADMIN.JS - प्रगत लॉजिक आणि 'मोबाईल नंबर' फील्डसह
+// 🟢 JS/ADMIN.JS - Field IDs (f_1, f_2) आणि १००% Saving Logic सह
 
 function openNewFormBuilder() {
     document.getElementById('formBuilder').classList.remove('hidden');
@@ -13,6 +13,8 @@ function openNewFormBuilder() {
     document.querySelectorAll('.form-role').forEach(cb => cb.checked = false);
     document.getElementById('fieldsList').innerHTML = "";
     document.getElementById('mainActionBtn').innerText = "फॉर्म सेव्ह करा";
+    
+    globalFieldCounter = 1; // नवीन फॉर्मसाठी काऊंटर १ पासून सुरू
     toggleLayoutOption();
     addField(); 
 }
@@ -76,9 +78,20 @@ function loadFormForEdit(f) {
     document.getElementById('fieldsList').innerHTML = "";
     document.getElementById('mainActionBtn').innerText = "बदल सेव्ह करा (Update)";
 
+    globalFieldCounter = 1;
     let structure = [];
     try { structure = JSON.parse(f.StructureJSON); } catch(e) {}
     
+    // जुन्या प्रश्नांचे ID तपासून काऊंटर पुढे नेणे
+    function updateMaxFid(fld) {
+        if(fld.fid && fld.fid.startsWith('f_')) {
+            let num = parseInt(fld.fid.split('_')[1]);
+            if(!isNaN(num) && num >= globalFieldCounter) { globalFieldCounter = num + 1; }
+        }
+        if(fld.subFields) fld.subFields.forEach(updateMaxFid);
+    }
+    structure.forEach(updateMaxFid);
+
     if(structure.length === 0) { addField(); } 
     else { structure.forEach(field => addFieldToUI(field)); }
 }
@@ -94,6 +107,7 @@ function toggleAdv(btn) {
     }
 }
 
+// 🟢 मुख्य प्रश्न ॲड करणे
 function addFieldToUI(fieldData = null) {
     const list = document.getElementById('fieldsList');
     const fDiv = document.createElement('div');
@@ -104,14 +118,20 @@ function addFieldToUI(fieldData = null) {
     fDiv.style.borderRadius = "8px";
     fDiv.style.background = "#fff";
 
+    let fid = (fieldData && fieldData.fid) ? fieldData.fid : ('f_' + (globalFieldCounter++));
     let isReqChecked = (fieldData && fieldData.isRequired) ? "checked" : "";
     let selType = fieldData ? fieldData.type : 'number';
 
     fDiv.innerHTML = `
         <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #eee; padding-bottom:8px; margin-bottom:12px;">
-            <label style="font-weight:bold; color:#17a2b8; font-size:16px;">मुख्य प्रश्न</label>
-            <button onclick="this.parentElement.parentElement.remove()" style="color:white; background:#dc3545; border:none; padding:4px 8px; border-radius:4px; font-weight:bold; cursor:pointer;">✖ काढून टाका</button>
+            <div>
+                <label style="font-weight:bold; color:#17a2b8; font-size:16px;">मुख्य प्रश्न</label>
+                <span style="background:#00705a; color:white; padding:3px 8px; border-radius:4px; font-size:13px; margin-left:10px; font-weight:bold;">ID: ${fid}</span>
+            </div>
+            <button onclick="this.parentElement.parentElement.remove()" style="color:white; background:#dc3545; border:none; padding:4px 8px; border-radius:4px; font-weight:bold; cursor:pointer;">✖ काढा</button>
         </div>
+        
+        <input type="hidden" class="f-fid" value="${fid}">
         
         <div style="display:flex; flex-direction:column; gap:10px;">
             <input type="text" class="f-label" placeholder="प्रश्नाचे नाव (उदा. एकूण गावे)" value="${fieldData ? fieldData.label : ''}" style="padding:10px; border:1px solid #ccc; border-radius:4px; font-weight:bold;">
@@ -130,9 +150,9 @@ function addFieldToUI(fieldData = null) {
 
         <button type="button" onclick="toggleAdv(this)" style="margin-top:10px; background:none; border:none; color:#0056b3; font-weight:bold; cursor:pointer; font-size:13px; text-align:left; padding:0;">⚙️ प्रगत सेटिंग्ज (Formula, Default Value...)</button>
         <div class="adv-settings" style="display:none; background:#f8f9fa; padding:10px; border:1px dashed #0056b3; border-radius:4px; margin-top:5px; flex-direction:column; gap:8px;">
-            <div><label style="font-size:12px; font-weight:bold;">Default Value (आपोआप येणारी किंमत):</label> <input type="text" class="f-def" placeholder="उदा. 0 किंवा निरंक" value="${fieldData && fieldData.defaultValue ? fieldData.defaultValue : ''}" style="padding:6px; width:100%; box-sizing:border-box; border:1px solid #ccc;"></div>
-            <div><label style="font-size:12px; font-weight:bold;">Formula (गणितीय सूत्र +, -, *, /):</label> <input type="text" class="f-form" placeholder="उदा. f_1 + f_2" value="${fieldData && fieldData.formula ? fieldData.formula : ''}" style="padding:6px; width:100%; box-sizing:border-box; border:1px solid #ccc;"></div>
-            <div><label style="font-size:12px; font-weight:bold;">Condition (अटी आणि रंग):</label> <input type="text" class="f-cond" placeholder="उदा. f_1>10:'[red]High'" value="${fieldData && fieldData.dependency ? fieldData.dependency : ''}" style="padding:6px; width:100%; box-sizing:border-box; border:1px solid #ccc;"></div>
+            <div><label style="font-size:12px; font-weight:bold;">Default Value:</label> <input type="text" class="f-def" placeholder="उदा. 0" value="${fieldData && fieldData.defaultValue ? fieldData.defaultValue : ''}" style="padding:6px; width:100%; box-sizing:border-box; border:1px solid #ccc;"></div>
+            <div><label style="font-size:12px; font-weight:bold;">Formula (+, -, *, /):</label> <input type="text" class="f-form" placeholder="उदा. f_1 + f_2" value="${fieldData && fieldData.formula ? fieldData.formula : ''}" style="padding:6px; width:100%; box-sizing:border-box; border:1px solid #ccc;"></div>
+            <div><label style="font-size:12px; font-weight:bold;">Condition (अटी):</label> <input type="text" class="f-cond" placeholder="उदा. f_1>10:'[red]High'" value="${fieldData && fieldData.dependency ? fieldData.dependency : ''}" style="padding:6px; width:100%; box-sizing:border-box; border:1px solid #ccc;"></div>
             <div><label style="font-size:12px; font-weight:bold;">Range (मर्यादा):</label> <input type="text" class="f-range" placeholder="उदा. 0-100 किंवा <=50" value="${fieldData && fieldData.range ? fieldData.range : ''}" style="padding:6px; width:100%; box-sizing:border-box; border:1px solid #ccc;"></div>
         </div>
 
@@ -146,6 +166,7 @@ function addFieldToUI(fieldData = null) {
     }
 }
 
+// 🟢 सब-प्रश्न ॲड करणे
 function addSubFieldToUI(parentDiv, sfData = null) {
     const subList = parentDiv.querySelector('.sub-fields');
     const sDiv = document.createElement('div');
@@ -155,14 +176,20 @@ function addSubFieldToUI(parentDiv, sfData = null) {
     sDiv.style.border = "1px solid #ced4da";
     sDiv.style.borderRadius = "5px";
 
+    let fid = (sfData && sfData.fid) ? sfData.fid : ('f_' + (globalFieldCounter++));
     let isReqChecked = (sfData && sfData.isRequired) ? "checked" : "";
     let selType = sfData ? sfData.type : 'number';
 
     sDiv.innerHTML = `
         <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #ddd; padding-bottom:5px; margin-bottom:10px;">
-            <label style="font-weight:bold; color:#0056b3; font-size:14px;">सब-प्रश्न</label>
+            <div>
+                <label style="font-weight:bold; color:#0056b3; font-size:14px;">सब-प्रश्न</label>
+                <span style="background:#0056b3; color:white; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:10px; font-weight:bold;">ID: ${fid}</span>
+            </div>
             <button onclick="this.parentElement.parentElement.remove()" style="color:#d32f2f; background:none; border:none; font-weight:bold; cursor:pointer;">✖ काढा</button>
         </div>
+
+        <input type="hidden" class="sf-fid" value="${fid}">
 
         <div style="display:flex; flex-direction:column; gap:8px;">
             <input type="text" class="sf-label" placeholder="सब-प्रश्नाचे नाव" value="${sfData ? sfData.label : ''}" style="padding:8px; border:1px solid #bbb; border-radius:4px;">
@@ -195,6 +222,7 @@ function addSubFieldToUI(parentDiv, sfData = null) {
     }
 }
 
+// 🟢 तिसरी लेव्हल (Sub-Sub) ॲड करणे
 function addSubSubFieldToUI(parentDiv, ssfData = null) {
     const subSubList = parentDiv.querySelector('.sub-sub-fields');
     const ssDiv = document.createElement('div');
@@ -204,15 +232,22 @@ function addSubSubFieldToUI(parentDiv, ssfData = null) {
     ssDiv.style.border = "1px solid #eee";
     ssDiv.style.borderRadius = "4px";
     
+    let fid = (ssfData && ssfData.fid) ? ssfData.fid : ('f_' + (globalFieldCounter++));
     let isReqChecked = (ssfData && ssfData.isRequired) ? "checked" : "";
     let selType = ssfData ? ssfData.type : 'number';
 
     ssDiv.innerHTML = `
         <div style="display:flex; flex-direction:column; gap:6px;">
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <input type="text" class="ssf-label" placeholder="तिसरी लेव्हल नाव" value="${ssfData ? ssfData.label : ''}" style="flex:1; padding:6px; border:1px solid #aaa; border-radius:4px; font-size:13px;">
+                <div style="flex:1;">
+                    <input type="text" class="ssf-label" placeholder="तिसरी लेव्हल नाव" value="${ssfData ? ssfData.label : ''}" style="width:100%; padding:6px; border:1px solid #aaa; border-radius:4px; font-size:13px; box-sizing:border-box;">
+                    <span style="background:#e65100; color:white; padding:2px 5px; border-radius:3px; font-size:10px; font-weight:bold; display:inline-block; margin-top:4px;">ID: ${fid}</span>
+                </div>
                 <button onclick="this.parentElement.parentElement.parentElement.remove()" style="color:#d32f2f; background:none; border:none; font-weight:bold; font-size:16px; margin-left:10px; cursor:pointer;">✖</button>
             </div>
+            
+            <input type="hidden" class="ssf-fid" value="${fid}">
+
             <select class="ssf-type" style="padding:6px; border:1px solid #aaa; border-radius:4px; font-size:13px;">
                 <option value="number" ${selType === 'number' ? 'selected' : ''}>Number (आकडे)</option>
                 <option value="text" ${selType === 'text' ? 'selected' : ''}>Text (अक्षरे)</option>
@@ -237,6 +272,7 @@ function addField() { addFieldToUI(); }
 function addSubField(parentDiv) { addSubFieldToUI(parentDiv); }
 function addSubSubField(parentDiv) { addSubSubFieldToUI(parentDiv); }
 
+// 🟢 सर्व्हरवर फॉर्म सेव्ह करणे (100% Robust)
 async function saveFullForm() {
     let fId = document.getElementById('editFormID').value;
     let fName = document.getElementById('newFormName').value;
@@ -262,6 +298,7 @@ async function saveFullForm() {
         let l = fDiv.querySelector('.f-label').value;
         let t = fDiv.querySelector('.f-type').value;
         let r = fDiv.querySelector('.f-req').checked;
+        let fid = fDiv.querySelector('.f-fid').value;
         
         let def = fDiv.querySelector('.f-def').value.trim();
         let form = fDiv.querySelector('.f-form').value.trim();
@@ -269,7 +306,7 @@ async function saveFullForm() {
         let rng = fDiv.querySelector('.f-range').value.trim();
 
         if(l) {
-            let fieldObj = { label: l, type: t, isRequired: r };
+            let fieldObj = { label: l, type: t, isRequired: r, fid: fid };
             if(def) fieldObj.defaultValue = def;
             if(form) fieldObj.formula = form;
             if(cond) fieldObj.dependency = cond;
@@ -281,6 +318,7 @@ async function saveFullForm() {
                     let sl = sDiv.querySelector('.sf-label').value;
                     let st = sDiv.querySelector('.sf-type').value;
                     let sr = sDiv.querySelector('.sf-req').checked;
+                    let sf_fid = sDiv.querySelector('.sf-fid').value;
                     
                     let s_def = sDiv.querySelector('.sf-def').value.trim();
                     let s_form = sDiv.querySelector('.sf-form').value.trim();
@@ -288,7 +326,7 @@ async function saveFullForm() {
                     let s_rng = sDiv.querySelector('.sf-range').value.trim();
 
                     if(sl) {
-                        let subFieldObj = { label: sl, type: st, isRequired: sr };
+                        let subFieldObj = { label: sl, type: st, isRequired: sr, fid: sf_fid };
                         if(s_def) subFieldObj.defaultValue = s_def;
                         if(s_form) subFieldObj.formula = s_form;
                         if(s_cond) subFieldObj.dependency = s_cond;
@@ -300,6 +338,7 @@ async function saveFullForm() {
                                 let ssl = ssDiv.querySelector('.ssf-label').value;
                                 let sst = ssDiv.querySelector('.ssf-type').value;
                                 let ssr = ssDiv.querySelector('.ssf-req').checked;
+                                let ssf_fid = ssDiv.querySelector('.ssf-fid').value;
                                 
                                 let ss_def = ssDiv.querySelector('.ssf-def').value.trim();
                                 let ss_form = ssDiv.querySelector('.ssf-form').value.trim();
@@ -307,7 +346,7 @@ async function saveFullForm() {
                                 let ss_rng = ssDiv.querySelector('.ssf-range').value.trim();
 
                                 if(ssl) {
-                                    let subSubFieldObj = { label: ssl, type: sst, isRequired: ssr };
+                                    let subSubFieldObj = { label: ssl, type: sst, isRequired: ssr, fid: ssf_fid };
                                     if(ss_def) subSubFieldObj.defaultValue = ss_def;
                                     if(ss_form) subSubFieldObj.formula = ss_form;
                                     if(ss_cond) subSubFieldObj.dependency = ss_cond;
@@ -327,13 +366,16 @@ async function saveFullForm() {
 
     if(structure.length === 0) { alert("कमीत कमी १ प्रश्न आवश्यक आहे!"); return; }
 
+    // गुगल शीटला सपोर्ट करण्यासाठी IsActive आणि Status दोन्ही जोडले आहेत
     let formPayload = {
         FormID: fId ? fId : "F_" + Date.now(),
         FormName: fName,
         FormType: finalType,
         AllowedRoles: allowedRoles,
         StructureJSON: JSON.stringify(structure),
-        IsActive: isActive
+        IsActive: isActive,
+        isActive: isActive, 
+        Status: isActive ? "ACTIVE" : "INACTIVE"
     };
 
     document.getElementById('mainActionBtn').innerText = "सेव्ह करत आहे...";
@@ -351,13 +393,13 @@ async function saveFullForm() {
         if(d.success) {
             alert("✅ फॉर्म यशस्वीरित्या सेव्ह झाला!");
             document.getElementById('formBuilder').classList.add('hidden');
-            await fetchData(); 
+            await fetchData(); // नवीन डेटा पुन्हा लोड करा
         } else {
             alert("⚠️ एरर: " + d.message);
         }
     } catch (error) {
         console.error("Form Save Error:", error);
-        alert("एरर: फॉर्म सेव्ह होऊ शकला नाही.");
+        alert("एरर: इंटरनेट किंवा सर्व्हर कनेक्शनमध्ये अडचण. फॉर्म सेव्ह होऊ शकला नाही.");
     } finally {
         document.getElementById('mainActionBtn').innerText = "फॉर्म सेव्ह करा";
         document.getElementById('mainActionBtn').disabled = false;
